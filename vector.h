@@ -10,18 +10,31 @@ struct Vec {
 	size_t size = 0;
 
 	// Constructor to initialize the vector with data
-	Vec(const std::vector<double>& input) : data(input) {
+	Vec(const std::vector<double>& input = {}) : data(input) {
 		size = data.size();
 	}
 
 	double& operator [] (int i) {
-	/*	if (i < 0) {
+		if (i < 0) {
 			return data[size + i];
-		}*/
+		}
 		return data[i];
 	}
 
+	bool operator == (const Vec& v2) {
 
+		if (size != v2.size) {
+			return false;
+		}
+
+		for (size_t i = 0; i < size; ++i) {
+			if (data[i] != v2.data[i]) {
+				return false;
+			}
+		}
+
+		return true;
+	}
 
 
 
@@ -123,7 +136,7 @@ struct Vec {
 		}
 	}
 
-	Vec operator + (const Vec& v2) {
+	Vec operator + (const Vec& v2) const {
 		Vec ans = Vec::zeros(size);
 
 		for (size_t i = 0; i < size; ++i) {
@@ -133,7 +146,7 @@ struct Vec {
 		return ans;
 	}
 
-	Vec operator + (double k) {
+	Vec operator + (double k) const {
 		Vec ans = Vec::zeros(size);
 
 		for (size_t i = 0; i < size; ++i) {
@@ -155,7 +168,7 @@ struct Vec {
 		}
 	}
 
-	Vec operator - (const Vec& v2) {
+	Vec operator - (const Vec& v2) const {
 		Vec ans = Vec::zeros(size);
 
 		for (size_t i = 0; i < size; ++i) {
@@ -165,7 +178,7 @@ struct Vec {
 		return ans;
 	}
 
-	Vec operator - (double k) {
+	Vec operator - (double k) const {
 		Vec ans = Vec::zeros(size);
 
 		for (size_t i = 0; i < size; ++i) {
@@ -245,7 +258,7 @@ struct Vec {
 	Vec operator ^ (int a) {
 		// lazy algorithm but who cares (TODO: binary exponentiation)
 
-		Vec ans({});
+		Vec ans;
 		ans.add(1, size);
 
 		for (int i = 0; i < a; ++i) {
@@ -354,6 +367,20 @@ struct Vec {
 
 		return ans;
 	}
+
+
+
+
+
+	static double euclideanDistance(const Vec& v1, const Vec& v2) {
+		Vec connection = v1 - v2;
+		return std::sqrt(connection * connection);
+	}
+
+	static double squaredEuclideanDistance(const Vec& v1, const Vec& v2) {
+		Vec connection = v1 - v2;
+		return connection * connection;
+	}
 };
 
 
@@ -420,14 +447,14 @@ Vec operator * (double k, const Vec& v) {
 #ifdef MATRIX_H
 
 // matrix by vector multiplication
-Vec operator * (Mat& mat, const Vec& v) {
+Vec operator * (const Mat& mat, const Vec& v) {
 
 	Vec ans = Vec::zeros(mat.row);
 
 	for (size_t i = 0; i < mat.row; ++i) {
 
 		for (size_t j = 0; j < mat.col; ++j) {
-			ans[i] += v.data[j] * mat[i][j];
+			ans[i] += v.data[j] * mat.mat[i][j];
 		}
 	}
 
