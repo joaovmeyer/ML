@@ -11,11 +11,12 @@
 using namespace std;
 
 
+
 struct Point {
 	double x, y;
 	olc::Pixel color = olc::BLACK;
 
-	Point (double x = 0, double y = 0) : x(x), y(y) {
+	Point(double x = 0, double y = 0) : x(x), y(y) {
 		
 	}
 };
@@ -50,6 +51,9 @@ private:
 	double minX, maxX, minY, maxY;
 	std::thread graphThread;
 
+	bool dragging = false;
+	Point dragStart;
+
 public:
 
 	int w, h, pixelW, pixelH;
@@ -64,8 +68,6 @@ public:
 		maxX = 7;
 		minY = -3 * ((double) h / w);
 		maxY = 7 * ((double) h / w);
-
-		cout << minY << ", " << (double) w / h << "\n";
 
 		// start the graph in another thread so the rest of the code doesn't stop
 		graphThread = std::thread([=]() {
@@ -82,6 +84,36 @@ public:
 	bool OnUserUpdate(float fElapsedTime) override {
 		
 		Clear(olc::WHITE);
+
+
+		Point mousePos = pointToWorldSpace(Point(GetMouseX(), GetMouseY()));
+
+		float zoom = std::exp(GetMouseWheel() * -0.001);
+
+		// translate so mouse pos is at origin, than scale, than translate back
+		// this ensures that the point the mouse hoovers doesn't move when scaling
+		minX = mousePos.x + (minX - mousePos.x) * zoom;
+		maxX = mousePos.x + (maxX - mousePos.x) * zoom;
+		minY = mousePos.y + (minY - mousePos.y) * zoom;
+		maxY = mousePos.y + (maxY - mousePos.y) * zoom;
+
+		// move view
+		if (GetMouse(0).bPressed && !dragging) {
+			dragStart = mousePos;
+			dragging = true;
+		} else if (GetMouse(0).bReleased) {
+			dragging = false;
+		}
+
+		if (dragging) {
+			minX -= (mousePos.x - dragStart.x);
+			maxX -= (mousePos.x - dragStart.x);
+			minY -= (mousePos.y - dragStart.y);
+			maxY -= (mousePos.y - dragStart.y);
+
+			dragStart = pointToWorldSpace(Point(GetMouseX(), GetMouseY()));
+		}
+
 
 		drawAxis();
 
@@ -104,20 +136,25 @@ public:
 		Line l = *line;
 		for (size_t i = 0; i + 1 < l.points.size(); ++i) {
 			// transform to screen space
-			Point p1 = pointToScreenSpace(l.points[i]);
-			Point p2 = pointToScreenSpace(l.points[i + 1]);
+			Point screenSpaceP1 = pointToScreenSpace(l.points[i]);
+			Point screenSpaceP2 = pointToScreenSpace(l.points[i + 1]);
 
-			DrawLine(p1.x, p1.y, p2.x, p2.y, l.color);
+			olc::vi2d p1(screenSpaceP1.x, screenSpaceP1.y);
+			olc::vi2d p2(screenSpaceP2.x, screenSpaceP2.y);
+
+			if (ClipLineToScreen(p1, p2)) {
+				DrawLine(p1, p2, l.color);
+			}
 		}
 	}
 
-	void addPoint(Point& p) {
+	void addPoint(const Point& p) {
 		points.push_back(p);
 	}
 
 	void drawPoint(Point& p, int size = 1) {
 		Point screenSpace = pointToScreenSpace(p);
-		FillCircle(screenSpace.x, screenSpace.y, size, olc::BLACK);
+		FillCircle(screenSpace.x, screenSpace.y, size, p.color);
 	}
 
 
@@ -135,18 +172,24 @@ public:
 	}
 
 
-	Point pointToScreenSpace(Point p) {
+	Point pointToScreenSpace(const Point& p) {
+		// we need to map X coordinate from [minX, maxX] to [0, w] (and similar with Y)
+
 		Point screenSpace;
 		screenSpace.x = (p.x - minX) * (w / (maxX - minX));
 		screenSpace.y = h - (p.y - minY) * (h / (maxY - minY));
 
 		return screenSpace;
+	}
 
-		// we need to map X coordinate from [minX, maxX] to [0, w] (and similar with Y)
+	Point pointToWorldSpace(const Point& p) {
+		// we need to map X coordinate from [0, w] to [minX, maxX] (and similar with Y)
 
+		Point worldSpace;
+		worldSpace.x = p.x / (w / (maxX - minX)) + minX;
+		worldSpace.y = (maxY - minY) - p.y / (h / (maxY - minY)) + minY;
 
-
-		return screenSpace;
+		return worldSpace;
 	}
 
 };
