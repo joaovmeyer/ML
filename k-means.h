@@ -55,21 +55,23 @@ struct Kmeans {
 		return centroids;
 	}
 
-	void updateCentroids(Dataset& dataset) {
+	void updateCentroid(int centroidIndex, Dataset& dataset) {
+		Vec sum = Vec::zeros(dataset.dim);
+		int totalPoints = 0;
 
-		for (int i = 0; i < k; ++i) {
-
-			Vec sum = Vec::zeros(dataset.dim);
-			int totalPoints = 0;
-
-			for (size_t j = 0; j < dataset.size; ++j) {
-				if (dataset[j].y == types[i]) {
-					sum += dataset[j].x;
-					++totalPoints;
-				}
+		for (size_t i = 0; i < dataset.size; ++i) {
+			if (dataset[i].y == types[centroidIndex]) {
+				sum += dataset[i].x;
+				++totalPoints;
 			}
+		}
 
-			centroids[i] = sum / totalPoints;
+		centroids[centroidIndex] = sum / totalPoints;
+	}
+
+	void updateCentroids(Dataset& dataset) {
+		for (int i = 0; i < k; ++i) {
+			updateCentroid(i, dataset);
 		}
 	}
 
@@ -81,7 +83,7 @@ struct Kmeans {
 
 		bool someChange;
 		int iterations = 0;
-		int maxIterations = 10000; // just in case
+		int maxIterations = 1000; // just in case
 
 		do {
 			someChange = false;
@@ -101,13 +103,20 @@ struct Kmeans {
 				}
 
 				if (currCentroid[i] != closestCentroid) {
-					currCentroid[i] = closestCentroid;
 					someChange = true;
 					dataset[i].y = types[closestCentroid];
+
+					// MacQueen algorithm
+				/*	if (currCentroid[i] != -1) {
+						updateCentroid(currCentroid[i], dataset);
+					}
+					updateCentroid(closestCentroid, dataset);*/
+
+					currCentroid[i] = closestCentroid;
 				}
 			}
 
-			updateCentroids(dataset);
+			updateCentroids(dataset); // Lloyd algorithm
 
 		} while (someChange && iterations < maxIterations);
 
