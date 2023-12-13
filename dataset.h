@@ -15,6 +15,15 @@ struct DataPoint {
 	DataPoint(const Vec& x, const Vec& y) : x(x), y(y) {
 		dim = x.size;
 	}
+
+
+	static double euclideanDistance(const DataPoint& p1, const DataPoint& p2) {
+		return Vec::euclideanDistance(p1.x, p2.x);
+	}
+
+	static double squaredEuclideanDistance(const DataPoint& p1, const DataPoint& p2) {
+		return Vec::squaredEuclideanDistance(p1.x, p2.x);
+	}
 };
 
 std::ostream& operator<<(std::ostream& os, const DataPoint& dataPoint) {
@@ -28,10 +37,10 @@ struct Dataset {
 	size_t size = 0;
 	size_t dim;
 
-	Vec minX = Vec({});
-	Vec maxX = Vec({});
-	Vec minY = Vec({});
-	Vec maxY = Vec({});
+	Vec minX;
+	Vec maxX;
+	Vec minY;
+	Vec maxY;
 
 	RNG rng;
 
@@ -41,9 +50,9 @@ struct Dataset {
 
 
 	DataPoint& operator [] (int i) {
-	/*	if (i < 0) {
+		if (i < 0) {
 			return dataPoints[size + i];
-		}*/
+		}
 		return dataPoints[i];
 	}
 
@@ -87,22 +96,41 @@ struct Dataset {
 			std::swap(dataPoints[i], dataPoints[rand]);
 		}	
 	}
+
+
+
+
+
+	DataPoint& getRandom() {
+		int rand = rng.fromUniformDistribution(0, size - 1);
+		return dataPoints[rand];
+	}
+
+
+	DataPoint& getRandom(vector<double> weights) {
+
+		vector<double> cumulativeProb(weights.size());
+		double cumulative = 0.0;
+
+		for (size_t i = 0; i < weights.size(); ++i) {
+			cumulative += weights[i];
+			cumulativeProb[i] = cumulative;
+		}
+
+		double randomValue = rng.fromUniformDistribution(0.0, cumulative);
+
+		size_t index = std::lower_bound(cumulativeProb.begin(), cumulativeProb.end(), randomValue) - cumulativeProb.begin();
+
+		return dataPoints[index];
+	}
 };
 
-
-
-/*
-def shuffle(array):
-	i = len(array);
-	while (i):
-		rand = int(random() * i); # random() * i is always positive, so int is equal to floor
-		i -= 1;
-
-		temporary = array[i];
-		array[i] = array[rand];
-		array[rand] = temporary;
-*/
-
+std::ostream& operator<<(std::ostream& os, const Dataset& dataset) {
+	for (size_t i = 0; i < dataset.size; ++i) {
+		os << dataset.dataPoints[i] << "\n";
+	}
+	return os;
+}
 
 
 #endif
