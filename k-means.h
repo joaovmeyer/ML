@@ -45,6 +45,8 @@ struct Kmeans {
 				for (size_t j = 1; j < numCentroids; ++j) {
 					distances[i] = std::min(distances[i], Vec::squaredEuclideanDistance(centroids[j], dataset[i].x));
 				}
+
+				distances[i] *= distances[i];
 			}
 
 			// uses the distances to the centroids as a weight to get a random centroid.
@@ -55,31 +57,49 @@ struct Kmeans {
 		return centroids;
 	}
 
-	void updateCentroid(int centroidIndex, Dataset& dataset) {
-		Vec sum = Vec::zeros(dataset.dim);
-		int totalPoints = 0;
+
+	void updateCentroids(Dataset& dataset, Vec& currCentroids) {
+
+		vector<Vec> sum(k);
+		Vec totalPoints = Vec::zeros(k);
+		for (int i = 0; i < k; ++i) {
+			sum[i] = Vec::zeros(dataset.dim);
+		}
 
 		for (size_t i = 0; i < dataset.size; ++i) {
-			if (dataset[i].y == types[centroidIndex]) {
-				sum += dataset[i].x;
-				++totalPoints;
+
+			sum[currCentroids[i]] += dataset[i].x;
+			++totalPoints[currCentroids[i]];
+		}
+
+		for (int i = 0; i < k; ++i) {
+			centroids[i] = sum[i] / (totalPoints[i] + (!totalPoints[i]));
+		}
+
+	}
+
+	int getClosestCentroid(DataPoint& point) {
+
+		int closest = 0;
+		double minDst = Vec::squaredEuclideanDistance(centroids[0], point.x);
+
+		for (int i = 1; i < k; ++i) {
+			double dst = Vec::squaredEuclideanDistance(centroids[i], point.x);
+
+			if (dst < minDst) {
+				closest = i;
+				minDst = dst;
 			}
 		}
 
-		centroids[centroidIndex] = sum / totalPoints;
-	}
-
-	void updateCentroids(Dataset& dataset) {
-		for (int i = 0; i < k; ++i) {
-			updateCentroid(i, dataset);
-		}
+		return closest;
 	}
 
 	// uses Lloyd algorithm
 	void fit(Dataset& dataset) {
 		// initializing the centroids
 		centroids = kmeans_pp(dataset);
-		Vec currCentroid = Vec::zeros(dataset.size) - 1; // no one has centroids yet
+		Vec currCentroids = Vec::zeros(dataset.size) - 1; // no one has centroids yet;
 
 		bool someChange;
 		int iterations = 0;
@@ -90,33 +110,16 @@ struct Kmeans {
 			++iterations;
 
 			for (size_t i = 0; i < dataset.size; ++i) {
-				int closestCentroid = 0;
-				double minDst = Vec::squaredEuclideanDistance(centroids[0], dataset[i].x);
+				int closest = getClosestCentroid(dataset[i]);
 
-				for (size_t j = 1; j < k; ++j) {
-					double dst = Vec::squaredEuclideanDistance(centroids[j], dataset[i].x);
-
-					if (dst < minDst) {
-						minDst = dst;
-						closestCentroid = j;
-					}
-				}
-
-				if (currCentroid[i] != closestCentroid) {
-					someChange = true;
-					dataset[i].y = types[closestCentroid];
-
-					// MacQueen algorithm
-				/*	if (currCentroid[i] != -1) {
-						updateCentroid(currCentroid[i], dataset);
-					}
-					updateCentroid(closestCentroid, dataset);*/
-
-					currCentroid[i] = closestCentroid;
+				if (currCentroids[i] != closest) {
+					someChange = true; // no convergence yet
+					currCentroids[i] = closest;
+					dataset[i].y = types[closest];
 				}
 			}
 
-			updateCentroids(dataset); // Lloyd algorithm
+			updateCentroids(dataset, currCentroids);
 
 		} while (someChange && iterations < maxIterations);
 
