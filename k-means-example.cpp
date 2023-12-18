@@ -39,19 +39,18 @@ int main() {
 
 	Dataset test;
 
-	int k = 10;
+	int k = 5;
 
 	// make k groups
 	for (int i = 0; i < k; ++i) {
-		double centerX = test.rng.fromUniformDistribution(-8.0, 8.0);
-		double centerY = test.rng.fromUniformDistribution(-8.0, 8.0);
+		double centerX = test.rng.fromUniformDistribution(-5.0, 5.0);
+		double centerY = test.rng.fromUniformDistribution(-5.0, 5.0);
 
-		addPointsFromCircle(2000, 1, centerX, centerY, test, graph);
+		addPointsFromCircle(200, 1, centerX, centerY, test, graph);
 	}
 
 	Kmeans model(k);
 
-	model.fit(test);
 
 	olc::Pixel colors[10] = {
 		olc::Pixel(31, 119, 180),
@@ -65,6 +64,18 @@ int main() {
 		olc::Pixel(188, 189, 34),
 		olc::Pixel(23, 190, 207)
 	};
+
+
+
+
+
+	model.fit(test);
+
+
+	for (int i = 0; i < k; ++i) {
+		graph.addPoint(Point(model.centroids[i][0], model.centroids[i][1], 10, colors[i]));
+	}
+
 
 	for (size_t i = 0; i < test.size; ++i) {
 		size_t j;
