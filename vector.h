@@ -21,7 +21,15 @@ struct Vec {
 		return data[i];
 	}
 
-	bool operator == (const Vec& v2) {
+	// read only
+	double operator [] (int i) const {
+		if (i < 0) {
+			return data[size + i];
+		}
+		return data[i];
+	}
+
+	bool operator == (const Vec& v2) const {
 
 		if (size != v2.size) {
 			return false;
@@ -342,6 +350,30 @@ struct Vec {
 
 		for (size_t i = 1; i < v.size; ++i) {
 			ans = std::max(v.data[i], ans);
+		}
+
+		return ans;
+	}
+
+	static size_t argmax(const Vec& v) {
+		size_t ans = 0;
+
+		for (size_t i = 1; i < v.size; ++i) {
+			if (v[ans] < v[i]) {
+				ans = i;
+			}
+		}
+
+		return ans;
+	}
+
+	static size_t argmin(const Vec& v) {
+		size_t ans = 0;
+
+		for (size_t i = 1; i < v.size; ++i) {
+			if (v[ans] > v[i]) {
+				ans = i;
+			}
 		}
 
 		return ans;
