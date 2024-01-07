@@ -31,16 +31,12 @@ int main() {
 	model.fit(test);
 
 	Line prediction(olc::RED);
-	Line expected(olc::GREEN);
 
 	for (double x = 0; x < 5; x += 0.17) {
 		double y = model.predict(Vec({ x }))[0];
 		prediction.addPoint(Point(x, y));
-
-		expected.addPoint(Point(x, sigmoid(expectedB + x * expectedW)));
 	}
 
-	graph.addLine(expected);
 	graph.addLine(prediction);
 
 	// waits untill the user closes the graph
