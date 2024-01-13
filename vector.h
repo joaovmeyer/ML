@@ -5,6 +5,24 @@
 #include <cmath>
 using namespace std;
 
+
+// forward declaration
+#ifdef MATRIX_H
+
+struct Mat;
+
+#endif
+
+
+
+
+
+
+
+
+
+
+
 struct Vec {
 	std::vector<double> data;
 	size_t size = 0;
@@ -44,6 +62,21 @@ struct Vec {
 		return true;
 	}
 
+	bool operator != (const Vec& v2) const {
+		return !(*this == v2);
+	}
+
+	operator bool() const {
+
+		if (!size) return false;
+
+		for (size_t i = 0; i < size; ++i) {
+			if (!data[i]) return false;
+		}
+
+		return true;
+	}
+
 
 
 
@@ -55,7 +88,7 @@ struct Vec {
 	****************************************************************************************/
 
 	// the dot product
-	double operator * (const Vec& v2) {
+	double operator * (const Vec& v2) const {
 		double result = 0;
 		for (size_t i = 0; i < size; ++i) {
 			result += data[i] * v2.data[i];
@@ -64,13 +97,15 @@ struct Vec {
 		return result;
 	}
 
-	void operator *= (double k) {
+	template <typename T>
+	void operator *= (T k) {
 		for (size_t i = 0; i < size; ++i) {
 			data[i] *= k;
 		}
 	}
 
-	Vec operator * (double k) {
+	template <typename T>
+	Vec operator * (T k) const {
 		Vec ans = Vec::zeros(size);
 
 		for (size_t i = 0; i < size; ++i) {
@@ -94,17 +129,7 @@ struct Vec {
 	// outer product can only be done if matrix is included (returns a matrix)
 	#ifdef MATRIX_H
 
-	static Mat outer(const Vec& v1, const Vec& v2) {
-		Mat ans(v1.size, v2.size);
-
-		for (size_t i = 0; i < ans.row; ++i) {
-			for (size_t j = 0; j < ans.col; ++j) {
-				ans[i][j] = v1.data[i] * v2.data[j];
-			}
-		}
-
-		return ans;
-	}
+	static Mat outer(const Vec& v1, const Vec& v2);
 
 	#endif
 
@@ -138,7 +163,8 @@ struct Vec {
 		}
 	}
 
-	void operator += (double k) {
+	template <typename T>
+	void operator += (T k) {
 		for (size_t i = 0; i < size; ++i) {
 			data[i] += k;
 		}
@@ -154,7 +180,8 @@ struct Vec {
 		return ans;
 	}
 
-	Vec operator + (double k) const {
+	template <typename T>
+	Vec operator + (T k) const {
 		Vec ans = Vec::zeros(size);
 
 		for (size_t i = 0; i < size; ++i) {
@@ -170,7 +197,8 @@ struct Vec {
 		}
 	}
 
-	void operator -= (double k) {
+	template <typename T>
+	void operator -= (T k) {
 		for (size_t i = 0; i < size; ++i) {
 			data[i] -= k;
 		}
@@ -186,7 +214,8 @@ struct Vec {
 		return ans;
 	}
 
-	Vec operator - (double k) const {
+	template <typename T>
+	Vec operator - (T k) const {
 		Vec ans = Vec::zeros(size);
 
 		for (size_t i = 0; i < size; ++i) {
@@ -208,7 +237,17 @@ struct Vec {
 
 
 
+	static Vec prefixSum(const Vec& v) {
+		Vec ans = Vec::zeros(v.size);
+		double sum = 0;
 
+		for (size_t i = 0; i < v.size; ++i) {
+			sum += v[i];
+			ans[i] = sum;
+		}
+
+		return ans;
+	}
 
 
 
@@ -225,8 +264,8 @@ struct Vec {
 	****************************************************************************************/
 	
 
-    // element-wise
-	Vec operator / (const Vec& v2) {
+	// element-wise
+	Vec operator / (const Vec& v2) const {
 		Vec ans = Vec::zeros(size);
 
 		for (size_t i = 0; i < size; ++i) {
@@ -236,7 +275,8 @@ struct Vec {
 		return ans;
 	}
 
-	Vec operator / (double k) {
+	template <typename T>
+	Vec operator / (T k) const {
 		Vec ans = Vec::zeros(size);
 		double invK = 1 / k;
 
@@ -266,8 +306,7 @@ struct Vec {
 	Vec operator ^ (int a) {
 		// lazy algorithm but who cares (TODO: binary exponentiation)
 
-		Vec ans;
-		ans.add(1, size);
+		Vec ans = Vec::zeros(size) + 1;
 
 		for (int i = 0; i < a; ++i) {
 			ans = Vec::hadamard(ans, *this);
@@ -291,13 +330,66 @@ struct Vec {
 
 
 
+	template <typename T>
+	Vec operator < (T k) const {
+		Vec ans = Vec::zeros(size);
 
+		for (size_t i = 0; i < size; ++i) {
+			ans[i] = data[i] < k;
+		}
+
+		return ans;
+	}
+
+	template <typename T>
+	Vec operator > (T k) const {
+		Vec ans = Vec::zeros(size);
+
+		for (size_t i = 0; i < size; ++i) {
+			ans[i] = data[i] > k;
+		}
+
+		return ans;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	static double norm(const Vec& v) {
+		return std::sqrt(v * v);
+	}
+
+	static Vec normalize(const Vec& v) {
+		return v / Vec::norm(v);
+	}
 
 
 	void add(double elem, int times = 1) {
 		while (times--) {
 			data.push_back(elem);
 			++size;
+		}
+	}
+
+	void add(const Vec& elems, int times = 1) {
+		while (times--) {
+			for (size_t i = 0; i < elems.size; ++i) {
+				data.push_back(elems[i]);
+			}
+
+			size += elems.size;
 		}
 	}
 
@@ -433,7 +525,8 @@ std::ostream& operator << (std::ostream& os, const Vec& v) {
 
 
 
-Vec operator / (double k, const Vec& v) {
+template <typename T>
+Vec operator / (T k, const Vec& v) {
 	Vec ans = Vec::zeros(v.size);
 
 	for (size_t i = 0; i < v.size; ++i) {
@@ -443,7 +536,8 @@ Vec operator / (double k, const Vec& v) {
 	return ans;
 }
 
-Vec operator + (double k, const Vec& v) {
+template <typename T>
+Vec operator + (T k, const Vec& v) {
 	Vec ans = Vec::zeros(v.size);
 
 	for (size_t i = 0; i < v.size; ++i) {
@@ -453,7 +547,8 @@ Vec operator + (double k, const Vec& v) {
 	return ans;
 }
 
-Vec operator - (double k, const Vec& v) {
+template <typename T>
+Vec operator - (T k, const Vec& v) {
 	Vec ans = Vec::zeros(v.size);
 
 	for (size_t i = 0; i < v.size; ++i) {
@@ -463,7 +558,8 @@ Vec operator - (double k, const Vec& v) {
 	return ans;
 }
 
-Vec operator * (double k, const Vec& v) {
+template <typename T>
+Vec operator * (T k, const Vec& v) {
 	Vec ans = Vec::zeros(v.size);
 
 	for (size_t i = 0; i < v.size; ++i) {
@@ -472,28 +568,5 @@ Vec operator * (double k, const Vec& v) {
 
 	return ans;
 }
-
-
-
-
-#ifdef MATRIX_H
-
-// matrix by vector multiplication
-Vec operator * (const Mat& mat, const Vec& v) {
-
-	Vec ans = Vec::zeros(mat.row);
-
-	for (size_t i = 0; i < mat.row; ++i) {
-
-		for (size_t j = 0; j < mat.col; ++j) {
-			ans[i] += v.data[j] * mat.mat[i][j];
-		}
-	}
-
-	return ans;
-}
-
-#endif
-
 
 #endif
