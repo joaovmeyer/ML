@@ -3,7 +3,9 @@
 
 #include <vector>
 #include <cmath>
+
 #include "rng.h"
+#include "vector.h"
 using namespace std;
 
 
@@ -11,16 +13,16 @@ using namespace std;
 struct Mat {
 	int row, col;
 	int size[2];
-	std::vector<std::vector<double>> mat;
+	std::vector<Vec> mat;
 
 	RNG rng;
 
-	Mat(int r, int c) : row(r), col(c), mat(row, std::vector<double> (col)) {
+	Mat(int r = 0, int c = 0) : row(r), col(c), mat(row, Vec::zeros(col)) {
 		size[0] = row;
 		size[1] = col;
 	}
 
-	std::vector<double>& operator [] (int i) {
+	Vec& operator [] (int i) {
 		return mat[i];
 	}
 
@@ -35,7 +37,7 @@ struct Mat {
 
 	const void operator *= (const Mat& mat2) {
 
-		std::vector<std::vector<double>> result(row, std::vector<double>(mat2.col, 0));
+		std::vector<Vec> result(row, Vec::zeros(mat2.col));
 
 		for (size_t i = 0; i < row; ++i) {
 			for (size_t k = 0; k < col; ++k) {
@@ -48,22 +50,6 @@ struct Mat {
 		mat = result;
 		col = mat2.col;
 	}
-
-/*	void operator *= (const Mat&& mat2) {
-
-		std::vector<std::vector<double>> result(row, std::vector<double>(mat2.col, 0));
-
-		for (size_t i = 0; i < row; ++i) {
-			for (size_t k = 0; k < col; ++k) {
-				for (size_t j = 0; j < mat2.col; ++j) {
-					result[i][j] += mat[i][k] * mat2.mat[k][j];
-				}
-			}
-		}
-
-		mat = result;
-		col = mat2.col;
-	}*/
 
 	Mat operator * (const Mat& mat2) {
 		Mat ans(mat2.row, col);
@@ -91,21 +77,8 @@ struct Mat {
 		return ans;
 	}
 
-/*	Mat operator * (const Mat&& mat2) {
-		Mat ans(mat2.row, col);
-
-		for (size_t i = 0; i < row; ++i) {
-			for (size_t k = 0; k < col; ++k) {
-				for (size_t j = 0; j < mat2.col; ++j) {
-					ans[i][j] += mat[i][k] * mat2.mat[k][j];
-				}
-			}
-		}
-
-		return ans;
-	}*/
-
-	void operator *= (double k) {
+	template <typename T>
+	void operator *= (T k) {
 		for (size_t i = 0; i < row; ++i) {
 			for (size_t j = 0; j < col; ++j) {
 				mat[i][j] *= k;
@@ -113,7 +86,8 @@ struct Mat {
 		}
 	}
 
-	Mat operator * (double k) {
+	template <typename T>
+	Mat operator * (T k) const {
 		Mat ans(row, col);
 
 		for (size_t i = 0; i < row; ++i) {
@@ -125,7 +99,7 @@ struct Mat {
 		return ans;
 	}
 
-	Mat operator / (const Mat& mat2) {
+	Mat operator / (const Mat& mat2) const {
 		Mat ans(row, col);
 
 		for (size_t i = 0; i < row; ++i) {
@@ -158,15 +132,8 @@ struct Mat {
 		}
 	}
 
-/*	void operator += (Mat&& mat2) {
-		for (size_t i = 0; i < row; ++i) {
-			for (size_t j = 0; j < col; ++j) {
-				mat[i][j] += mat2[i][j];
-			}
-		}
-	}*/
-
-	void operator += (double k) {
+	template <typename T>
+	void operator += (T k) {
 		for (size_t i = 0; i < row; ++i) {
 			for (size_t j = 0; j < col; ++j) {
 				mat[i][j] += k;
@@ -174,7 +141,7 @@ struct Mat {
 		}
 	}
 
-	Mat operator + (const Mat& mat2) {
+	Mat operator + (const Mat& mat2) const {
 		Mat ans(row, col);
 
 		for (size_t i = 0; i < row; ++i) {
@@ -186,19 +153,8 @@ struct Mat {
 		return ans;
 	}
 
-/*	Mat operator + (Mat&& mat2) {
-		Mat ans(row, col);
-
-		for (size_t i = 0; i < row; ++i) {
-			for (size_t j = 0; j < col; ++j) {
-				ans[i][j] = mat[i][j] + mat2[i][j];
-			}
-		}
-
-		return ans;
-	}*/
-
-	Mat operator + (double k) {
+	template <typename T>
+	Mat operator + (T k) {
 		Mat ans(row, col);
 
 		for (size_t i = 0; i < row; ++i) {
@@ -218,15 +174,8 @@ struct Mat {
 		}
 	}
 
-/*	void operator -= (Mat&& mat2) {
-		for (size_t i = 0; i < row; ++i) {
-			for (size_t j = 0; j < col; ++j) {
-				mat[i][j] -= mat2[i][j];
-			}
-		}
-	}*/
-
-	void operator -= (double k) {
+	template <typename T>
+	void operator -= (T k) {
 		for (size_t i = 0; i < row; ++i) {
 			for (size_t j = 0; j < col; ++j) {
 				mat[i][j] -= k;
@@ -246,19 +195,8 @@ struct Mat {
 		return ans;
 	}
 
-/*	Mat operator - (Mat&& mat2) {
-		Mat ans(row, col);
-
-		for (size_t i = 0; i < row; ++i) {
-			for (size_t j = 0; j < col; ++j) {
-				ans[i][j] = mat[i][j] - mat2[i][j];
-			}
-		}
-
-		return ans;
-	}*/
-
-	Mat operator - (double k) {
+	template <typename T>
+	Mat operator - (T k) {
 		Mat ans(row, col);
 
 		for (size_t i = 0; i < row; ++i) {
@@ -280,7 +218,8 @@ struct Mat {
 	*																						*
 	****************************************************************************************/
 
-	void operator /= (double k) {
+	template <typename T>
+	void operator /= (T k) {
 		for (size_t i = 0; i < row; ++i) {
 			for (size_t j = 0; j < col; ++j) {
 				mat[i][j] /= k;
@@ -288,7 +227,8 @@ struct Mat {
 		}
 	}
 
-	Mat operator / (double k) {
+	template <typename T>
+	Mat operator / (T k) const {
 		Mat ans(row, col);
 		double invK = 1 / k;
 
@@ -329,7 +269,7 @@ struct Mat {
 	}
 
 	void transpose() {
-		std::vector<std::vector<double>> result(col, std::vector<double>(row, 0));
+		std::vector<Vec> result(col, Vec::zeros(row));
 
 		for (size_t i = 0; i < row; ++i) {
 			for (size_t j = 0; j < col; ++j) {
@@ -408,7 +348,8 @@ struct Mat {
 
 
 
-Mat operator / (double k, const Mat& mat) {
+template <typename T>
+Mat operator / (T k, const Mat& mat) {
 	Mat ans(mat.row, mat.col);
 
 	for (size_t i = 0; i < mat.row; ++i) {
@@ -420,19 +361,42 @@ Mat operator / (double k, const Mat& mat) {
 	return ans;
 }
 
-/*Mat operator / (double k, Mat&& mat) {
-	Mat ans(mat.row, mat.col);
 
-	for (size_t i = 0; i < mat.row; ++i) {
-		for (size_t j = 0; j < mat.col; ++j) {
-			ans[i][j] = k / mat[i][j];
+
+
+
+
+Mat Vec::outer(const Vec& v1, const Vec& v2) {
+	Mat ans(v1.size, v2.size);
+
+	for (size_t i = 0; i < ans.row; ++i) {
+		for (size_t j = 0; j < ans.col; ++j) {
+			ans[i][j] = v1.data[i] * v2.data[j];
 		}
 	}
 
 	return ans;
-}*/
+}
 
 
+
+
+
+
+// matrix by vector multiplication
+Vec operator * (const Mat& mat, const Vec& v) {
+
+	Vec ans = Vec::zeros(mat.row);
+
+	for (size_t i = 0; i < mat.row; ++i) {
+
+		for (size_t j = 0; j < mat.col; ++j) {
+			ans[i] += v.data[j] * mat.mat[i][j];
+		}
+	}
+
+	return ans;
+}
 
 
 
