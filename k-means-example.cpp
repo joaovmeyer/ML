@@ -78,14 +78,8 @@ int main() {
 
 
 	for (size_t i = 0; i < test.size; ++i) {
-		size_t j;
-		for (j = 0; j < test[i].y.size; ++j) {
-			if (test[i].y[j] == 1) {
-				break;
-			}
-		}
-
-		graph.points[i].color = colors[j];
+		Vec pred = model.predict(test[i]);
+		graph.points[i].color = colors[Vec::argmax(pred)];
 	}
 
 	// waits untill the user closes the graph
