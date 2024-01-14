@@ -58,7 +58,7 @@ struct Kmeans {
 	}
 
 
-	void updateCentroids(Dataset& dataset, Vec& currCentroids) {
+	void updateCentroids(const Dataset& dataset, Vec& currCentroids) {
 
 		vector<Vec> sum(k);
 		Vec totalPoints = Vec::zeros(k);
@@ -67,7 +67,6 @@ struct Kmeans {
 		}
 
 		for (size_t i = 0; i < dataset.size; ++i) {
-
 			sum[currCentroids[i]] += dataset[i].x;
 			++totalPoints[currCentroids[i]];
 		}
@@ -78,7 +77,7 @@ struct Kmeans {
 
 	}
 
-	int getClosestCentroid(DataPoint& point) {
+	int getClosestCentroid(const DataPoint& point) {
 
 		int closest = 0;
 		double minDst = Vec::squaredEuclideanDistance(centroids[0], point.x);
@@ -115,7 +114,6 @@ struct Kmeans {
 				if (currCentroids[i] != closest) {
 					someChange = true; // no convergence yet
 					currCentroids[i] = closest;
-					dataset[i].y = types[closest];
 				}
 			}
 
@@ -124,6 +122,10 @@ struct Kmeans {
 		} while (someChange && iterations < maxIterations);
 
 		cout << "Converged in " << iterations << " iterations." << "\n";
+	}
+
+	Vec predict(const DataPoint& point) {
+		return types[getClosestCentroid(point)];
 	}
 };
 
