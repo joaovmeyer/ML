@@ -15,14 +15,23 @@ struct Mat {
 	int size[2];
 	std::vector<Vec> mat;
 
-	RNG rng;
-
 	Mat(int r = 0, int c = 0) : row(r), col(c), mat(row, Vec::zeros(col)) {
 		size[0] = row;
 		size[1] = col;
 	}
 
 	Vec& operator [] (int i) {
+		if (i < 0) {
+			return mat[row + i];
+		}
+		return mat[i];
+	}
+
+	// read only
+	Vec operator [] (int i) const {
+		if (i < 0) {
+			return mat[row + i];
+		}
 		return mat[i];
 	}
 
@@ -77,8 +86,7 @@ struct Mat {
 		return ans;
 	}
 
-	template <typename T>
-	void operator *= (T k) {
+	void operator *= (double k) {
 		for (size_t i = 0; i < row; ++i) {
 			for (size_t j = 0; j < col; ++j) {
 				mat[i][j] *= k;
@@ -86,8 +94,7 @@ struct Mat {
 		}
 	}
 
-	template <typename T>
-	Mat operator * (T k) const {
+	Mat operator * (double k) const {
 		Mat ans(row, col);
 
 		for (size_t i = 0; i < row; ++i) {
@@ -113,7 +120,21 @@ struct Mat {
 
 
 
+	static Mat convolution(const Mat& mat, const Mat& ker) {
+		Mat ans(mat.row - ker.row + 1, mat.col - ker.col + 1);
 
+		for (size_t y = 0; y < ans.row; ++y) {
+			for (size_t x = 0; x < ans.col; ++x) {
+				for (size_t i = 0; i < ker.row; ++i) {
+					for (size_t j = 0; j < ker.col; ++j) {
+						ans[y][x] += mat[y + i][x + j] * ker[i][j];
+					}
+				}
+			}
+		}
+
+		return ans;
+	}
 
 
 
@@ -132,8 +153,7 @@ struct Mat {
 		}
 	}
 
-	template <typename T>
-	void operator += (T k) {
+	void operator += (double k) {
 		for (size_t i = 0; i < row; ++i) {
 			for (size_t j = 0; j < col; ++j) {
 				mat[i][j] += k;
@@ -153,8 +173,7 @@ struct Mat {
 		return ans;
 	}
 
-	template <typename T>
-	Mat operator + (T k) {
+	Mat operator + (double k) {
 		Mat ans(row, col);
 
 		for (size_t i = 0; i < row; ++i) {
@@ -174,8 +193,7 @@ struct Mat {
 		}
 	}
 
-	template <typename T>
-	void operator -= (T k) {
+	void operator -= (double k) {
 		for (size_t i = 0; i < row; ++i) {
 			for (size_t j = 0; j < col; ++j) {
 				mat[i][j] -= k;
@@ -195,8 +213,7 @@ struct Mat {
 		return ans;
 	}
 
-	template <typename T>
-	Mat operator - (T k) {
+	Mat operator - (double k) {
 		Mat ans(row, col);
 
 		for (size_t i = 0; i < row; ++i) {
@@ -218,8 +235,7 @@ struct Mat {
 	*																						*
 	****************************************************************************************/
 
-	template <typename T>
-	void operator /= (T k) {
+	void operator /= (double k) {
 		for (size_t i = 0; i < row; ++i) {
 			for (size_t j = 0; j < col; ++j) {
 				mat[i][j] /= k;
@@ -227,8 +243,7 @@ struct Mat {
 		}
 	}
 
-	template <typename T>
-	Mat operator / (T k) const {
+	Mat operator / (double k) const {
 		Mat ans(row, col);
 		double invK = 1 / k;
 
@@ -256,7 +271,7 @@ struct Mat {
 	void randomize(double mean = 0, double stddev = 1) {
 		for (size_t i = 0; i < row; ++i) {
 			for (size_t j = 0; j < col; ++j) {
-				mat[i][j] = rng.fromNormalDistribution(mean, stddev);
+				mat[i][j] = rng::fromNormalDistribution(mean, stddev);
 			}
 		}
 	}
@@ -278,9 +293,11 @@ struct Mat {
 		}
 
 		mat = result;
+		std::swap(row, col);
+		std::swap(size[0], size[1]);
 	}
 
-	static Mat transpose(Mat& mat) {
+	static Mat transpose(const Mat& mat) {
 		Mat transposed(mat.col, mat.row);
 
 		for (size_t i = 0; i < mat.row; ++i) {
@@ -341,6 +358,30 @@ struct Mat {
 
 		return sum;
 	}
+
+	static Mat min(const Mat& m1, const Mat& m2) {
+		Mat ans = Mat::zeros(m1.size);
+
+		for (size_t i = 0; i < m1.row; ++i) {
+			for (size_t j = 0; j < m1.col; ++j) {
+				ans[i][j] = std::min(m1[i][j], m2[i][j]);
+			}
+		}
+
+		return ans;
+	}
+
+	static Mat max(const Mat& m1, const Mat& m2) {
+		Mat ans = Mat::zeros(m1.size);
+
+		for (size_t i = 0; i < m1.row; ++i) {
+			for (size_t j = 0; j < m1.col; ++j) {
+				ans[i][j] = std::max(m1[i][j], m2[i][j]);
+			}
+		}
+
+		return ans;
+	}
 };
 
 
@@ -348,8 +389,7 @@ struct Mat {
 
 
 
-template <typename T>
-Mat operator / (T k, const Mat& mat) {
+Mat operator / (double k, const Mat& mat) {
 	Mat ans(mat.row, mat.col);
 
 	for (size_t i = 0; i < mat.row; ++i) {
