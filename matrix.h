@@ -61,7 +61,7 @@ struct Mat {
 	}
 
 	Mat operator * (const Mat& mat2) {
-		Mat ans(mat2.row, col);
+		Mat ans(row, mat2.col);
 
 		for (size_t i = 0; i < row; ++i) {
 			for (size_t k = 0; k < col; ++k) {
@@ -382,9 +382,51 @@ struct Mat {
 
 		return ans;
 	}
+
+	double min() {
+		double ans = mat[0][0];
+
+		for (size_t i = 0; i < row; ++i) {
+			for (size_t j = 0; j < col; ++j) {
+				ans = std::min(ans, mat[i][j]);
+			}
+		}
+
+		return ans;
+	}
+
+	double max() {
+		double ans = mat[0][0];
+
+		for (size_t i = 0; i < row; ++i) {
+			for (size_t j = 0; j < col; ++j) {
+				ans = std::max(ans, mat[i][j]);
+			}
+		}
+
+		return ans;
+	}
+
+	static Mat abs(const Mat& m) {
+		Mat ans = Mat::zeros(m.size);
+
+		for (size_t i = 0; i < m.row; ++i) {
+			for (size_t j = 0; j < m.col; ++j) {
+				ans[i][j] = std::abs(m[i][j]);
+			}
+		}
+
+		return ans;
+	}
 };
 
+std::ostream& operator << (std::ostream& os, const Mat& m) {
+	for (size_t i = 0; i < m.row; ++i) {
+		os << m[i] << "\n";
+	}
 
+	return os;
+}
 
 
 
