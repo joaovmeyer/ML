@@ -33,8 +33,6 @@ std::tuple<Mat, Vec, Mat> SVD(Mat& a, bool withu = true, bool withv = true, doub
 	double tol = std::numeric_limits<double>::min() / eps;
 	int m = a.row, n = a.col;
 
-	cout << m << ", " << n << "\n";
-
 	if (m < n) {
 		// section 5 part (ii) of the paper
 		cout << "Matrix had wrong dimentions. Returning result for transposed matrix instead.\n";
