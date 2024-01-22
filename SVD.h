@@ -26,16 +26,73 @@ of the singular values for this matrix when other tolerances are used." (about t
 
 
 // TODO: return full Uc (section 5 part (i) of the paper)
-//       sort eigenvalues?
 
 
-std::tuple<Mat, Vec, Mat> SVD(Mat& a, bool withu = true, bool withv = true, double eps = 1e-15, int maxIter = 30) {
+
+int partition(Vec& q, vector<size_t>& indices, int l, int r) {
+	double pivot = q[r];
+
+	int i = l;
+	for (size_t j = l; j < r; ++j) {
+		if (q[j] > pivot) {
+			std::swap(indices[i], indices[j]);
+			std::swap(q[i++], q[j]);
+		}
+	}
+
+	std::swap(indices[i], indices[r]);
+	std::swap(q[i], q[r]);
+
+	return i;
+}
+
+void quicksortInner(Vec& q, vector<size_t>& indices, int l, int r) {
+	if (l < r) {
+		int pivot = partition(q, indices, l, r);
+
+		quicksortInner(q, indices, l, pivot - 1);
+		quicksortInner(q, indices, pivot + 1, r);
+	}
+}
+
+std::tuple<Mat, Vec, Mat> quicksort(Mat& u, Vec& q, Mat& v) {
+	vector<size_t> indices(q.size, 0);
+	for (size_t i = 1; i < q.size; ++i) {
+		indices[i] = i;
+	}
+	
+	quicksortInner(q, indices, 0, q.size - 1);
+
+	Mat sortedU = Mat::zeros(u.size);
+	Mat sortedV = Mat::zeros(v.size);
+
+	// for now U and V will always have the same size (change this if full Uc)
+	for (size_t i = 0; i < v.col; ++i) {
+		size_t correctCol = indices[i];
+
+		for (size_t j = 0; j < v.row; ++j) {
+			sortedU[j][i] = u[j][correctCol];
+			sortedV[j][i] = v[j][correctCol];
+		}
+
+		// u.row might be bigger than v.row, but never the opposite
+		for (size_t j = v.row; j < u.row; ++j) {
+			sortedU[j][i] = u[j][correctCol];
+		}
+	}
+
+	return { sortedU, q, sortedV };
+}
+
+
+
+std::tuple<Mat, Vec, Mat> SVD(Mat& a, bool withu = true, bool withv = true, bool sorted = true, int maxIter = 30, double eps = 1e-15) {
 	double tol = std::numeric_limits<double>::min() / eps;
 	int m = a.row, n = a.col;
 
 	if (m < n) {
 		// section 5 part (ii) of the paper
-		cout << "Matrix had wrong dimentions. Returning result for transposed matrix instead.\n";
+		cout << "Matrix had wrong dimentions. Returning result for transposed matrix.\n";
 		a = Mat::transpose(a);
 		m = a.row, n = a.col;
 	}
@@ -323,6 +380,10 @@ std::tuple<Mat, Vec, Mat> SVD(Mat& a, bool withu = true, bool withv = true, doub
 		if (q[i] < eps * x) {
 			q[i] = 0;
 		}
+	}
+
+	if (sorted) {
+		return quicksort(u, q, v);
 	}
 
 	return { u, q, v };
