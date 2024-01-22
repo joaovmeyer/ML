@@ -156,8 +156,6 @@ struct Dataset {
 	Vec minY;
 	Vec maxY;
 
-	RNG rng;
-
 	Dataset() {
 
 	}
@@ -214,6 +212,21 @@ struct Dataset {
 	}
 
 
+	void meanZero() {
+		Vec mean = Vec::zeros(dim);
+
+		for (size_t i = 0; i < size; ++i) {
+			mean += dataPoints[i].x;
+		}
+
+		mean = mean / size;
+
+		for (size_t i = 0; i < size; ++i) {
+			dataPoints[i].x -= mean;
+		}
+	}
+
+
 	void add(const DataPoint& dataPoint) {
 		dim = dataPoint.dim;
 		dataPoints.push_back(std::move(dataPoint));
@@ -225,7 +238,7 @@ struct Dataset {
 		size_t i = size;
 		
 		while (i > 1) {
-			int rand = rng.fromUniformDistribution(0, --i);
+			int rand = rng::fromUniformDistribution(0, --i);
 			std::swap(dataPoints[i], dataPoints[rand]);
 		}	
 	}
@@ -242,7 +255,7 @@ struct Dataset {
 
 
 	DataPoint& getRandom() {
-		int rand = rng.fromUniformDistribution(0, size - 1);
+		int rand = rng::fromUniformDistribution(0, size - 1);
 		return dataPoints[rand];
 	}
 
@@ -257,7 +270,7 @@ struct Dataset {
 			cumulativeProb[i] = cumulative;
 		}
 
-		double randomValue = rng.fromUniformDistribution(0.0, cumulative);
+		double randomValue = rng::fromUniformDistribution(0.0, cumulative);
 
 		size_t index = std::lower_bound(cumulativeProb.begin(), cumulativeProb.end(), randomValue) - cumulativeProb.begin();
 
@@ -274,7 +287,7 @@ struct Dataset {
 			cumulativeProb[i] = cumulative;
 		}
 
-		double randomValue = rng.fromUniformDistribution(0.0, cumulative);
+		double randomValue = rng::fromUniformDistribution(0.0, cumulative);
 
 		size_t index = std::lower_bound(cumulativeProb.begin(), cumulativeProb.end(), randomValue) - cumulativeProb.begin();
 
@@ -307,6 +320,19 @@ struct Dataset {
 		}
 
 		return ans;
+	}
+
+
+	static vector<Mat> asMatrix(const Dataset& dataset) {
+		Mat X(dataset.size, dataset.dim);
+		Mat Y(dataset.size, dataset[0].y.size);
+
+		for (size_t i = 0; i < dataset.size; ++i) {
+			X[i] = dataset[i].x;
+			Y[i] = dataset[i].y;
+		}
+
+		return { X, Y };
 	}
 
 
