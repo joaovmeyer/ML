@@ -76,6 +76,11 @@ struct Adam {
 };
 
 
+
+
+
+
+
 struct linearRegression {
 	Mat W;
 	Vec B;
@@ -84,6 +89,37 @@ struct linearRegression {
 	Adam<Vec> optimizerB = Adam<Vec>(B);
 
 	void fit(const Dataset& dataset, size_t maxIter = 10000) {
+
+		Mat X(dataset.size, dataset.dim + 1);
+		for (size_t i = 0; i < dataset.size; ++i) {
+			for (size_t j = 0; j < dataset.dim; ++j) {
+				X[i][j] = dataset[i].x[j];
+			}
+			X[i][dataset.dim] = 1;
+		}
+
+		Mat Y(dataset.size, dataset[0].y.size);
+		for (size_t i = 0; i < dataset.size; ++i) {
+			for (size_t j = 0; j < dataset[0].y.size; ++j) {
+				Y[i][j] = dataset[i].y[j];
+			}
+		}
+
+		W = Mat::transpose(Mat::pseudoInverse(X) * Y);
+
+		// keep B so we don't have to add a 1 to every vector we want to predict
+		B = Vec::zeros(dataset[0].y.size);
+
+		for (size_t i = 0; i < W.row; ++i) {
+			B[i] = W[i][-1];
+			--W[i].size;
+			W[i].data.pop_back();
+		}
+
+		return;
+
+
+
 
 		size_t dimY = dataset[0].y.size;
 
