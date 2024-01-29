@@ -94,6 +94,42 @@ struct polynomialRegression {
 
 	void fit(const Dataset& dataset, size_t maxIter = 10000) {
 
+		Mat X(dataset.size, dataset.dim * deg + 1);
+		for (size_t i = 0; i < dataset.size; ++i) {
+			for (size_t j = 0; j < dataset.dim; ++j) {
+				double powX = dataset[i].x[j];
+
+				for (size_t k = 0; k < deg; ++k) {
+					X[i][j * deg + k] = powX;
+					powX *= dataset[i].x[j];
+				}
+			}
+			X[i][dataset.dim * deg] = 1;
+		}
+
+		Mat Y(dataset.size, dataset[0].y.size);
+		for (size_t i = 0; i < dataset.size; ++i) {
+			for (size_t j = 0; j < dataset[0].y.size; ++j) {
+				Y[i][j] = dataset[i].y[j];
+			}
+		}
+
+		W = Mat::transpose(Mat::pseudoInverse(X) * Y);
+
+		// keep B so we don't have to add a 1 to every vector we want to predict
+		B = Vec::zeros(dataset[0].y.size);
+
+		for (size_t i = 0; i < W.row; ++i) {
+			B[i] = W[i][-1];
+			--W[i].size;
+			W[i].data.pop_back();
+		}
+
+		return;
+
+
+
+
 		size_t dimY = dataset[0].y.size;
 
 		W = Mat::random(dimY, dataset.dim * deg, 0, 0.5);
