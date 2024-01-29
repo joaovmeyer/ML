@@ -1,6 +1,8 @@
 #ifndef MATRIX_H
 #define MATRIX_H
 
+#pragma GCC optimize("Ofast,unroll-loops") // really speeds up matrix multiplication
+
 #include <vector>
 #include <cmath>
 
@@ -94,7 +96,7 @@ struct Mat {
 		}
 	}
 
-	Mat operator * (double k) const {
+	Mat operator * (double k) __attribute__((optimize("Ofast", "unroll-loops"))) __attribute__((target("avx2,fma"))) {
 		Mat ans(row, col);
 
 		for (size_t i = 0; i < row; ++i) {
@@ -309,6 +311,10 @@ struct Mat {
 		return transposed;
 	}
 
+
+	static Mat pseudoInverse(const Mat& m);
+
+
 	static Mat identity(int n) {
 		Mat ans(n, n);
 
@@ -479,6 +485,32 @@ Vec operator * (const Mat& mat, const Vec& v) {
 
 	return ans;
 }
+
+
+
+
+
+#include "SVD.h"
+
+
+Mat Mat::pseudoInverse(const Mat& m) {
+	Mat transM = Mat::transpose(m);
+	auto [u, q, v] = SVD(transM * m, true, true, false); // no need to sort eigenvalues for pseudo inverse
+
+	Mat invQ(q.size, q.size);
+	for (size_t i = 0; i < q.size; ++i) {
+		if (!q[i]) continue;
+
+		invQ[i][i] = 1 / q[i];
+	}
+
+	return (v * invQ * Mat::transpose(u)) * transM;
+}
+
+
+
+
+
 
 
 
