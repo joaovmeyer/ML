@@ -13,10 +13,10 @@ using namespace std;
 
 
 struct Point {
-	double x, y;
-	olc::Pixel color = olc::BLACK;
+	double x, y, r;
+	olc::Pixel color;
 
-	Point(double x = 0, double y = 0) : x(x), y(y) {
+	Point(double x = 0, double y = 0, double radius = 2, const olc::Pixel color = olc::BLACK) : x(x), y(y), r(radius), color(color) {
 		
 	}
 };
@@ -34,7 +34,15 @@ struct Line {
 	}
 };
 
+struct Image {
+	olc::Sprite* sprite;
+	double x0, y0, x1, y1;
 
+	Image(olc::Sprite* s, double minX, double minY, double maxX, double maxY) {
+		sprite = s;
+		x0 = minX; y0 = minY; x1 = maxX; y1 = maxY;
+	}
+};
 
 
 
@@ -59,7 +67,8 @@ public:
 	int w, h, pixelW, pixelH;
 
 	vector<Point> points;
-	vector<Line*> lines;
+	vector<Line> lines;
+	vector<Image> images;
 
 
 	Graph(int w = 800, int h = 650, int pixelW = 1, int pixelH = 1) : w(w), h(h), pixelW(pixelW), pixelH(pixelH) {
@@ -122,18 +131,22 @@ public:
 		}
 
 		for (size_t i = 0; i < points.size(); ++i) {
-			drawPoint(points[i], 2);
+			drawPoint(points[i]);
+		}
+
+		for (size_t i = 0; i < images.size(); ++i) {
+			drawImage(images[i]);
 		}
 
 		return true;
 	}
 
-	void addLine(Line* line) {
+	void addLine(Line& line) {
 		lines.push_back(line);
 	}
 
-	void drawLine(Line* line) {
-		Line l = *line;
+	void drawLine(Line line) {
+		Line l = line;
 		for (size_t i = 0; i + 1 < l.points.size(); ++i) {
 			// transform to screen space
 			Point screenSpaceP1 = pointToScreenSpace(l.points[i]);
@@ -152,16 +165,41 @@ public:
 		points.push_back(p);
 	}
 
-	void drawPoint(Point& p, int size = 1) {
+	void drawPoint(Point& p) {
 		Point screenSpace = pointToScreenSpace(p);
-		FillCircle(screenSpace.x, screenSpace.y, size, p.color);
+		FillCircle(screenSpace.x, screenSpace.y, p.r, p.color);
 	}
 
 
-	void waitFinish() {
-		graphThread.join();
+	void addImage(olc::Sprite* sprite, double minX = 0, double minY = 0, double maxX = 1, double maxY = 1) {
+		images.push_back(Image(sprite, minX, minY, maxX, maxY));
 	}
 
+	void drawImage(const Image& img) {
+		vector<double> p1 = pointToScreenSpace(img.x0, img.y0);
+		vector<double> p2 = pointToScreenSpace(img.x1, img.y1);
+
+		int startX = std::min(std::max(static_cast<int>(p1[0]), 0), w);
+		int endX = std::min(std::max(static_cast<int>(p2[0]), 0), w);
+		double slopeX = (img.sprite->width - 1) / (p2[0] - p1[0]);
+		if (startX > endX) std::swap(startX, endX);
+
+		int startY = std::min(std::max(static_cast<int>(p1[1]), 0), h);
+		int endY = std::min(std::max(static_cast<int>(p2[1]), 0), h);
+		double slopeY = (img.sprite->height - 1) / (p1[1] - p2[1]);
+		if (startY > endY) std::swap(startY, endY);
+
+		for (int y = startY; y < endY; ++y) {
+			int imgY = (y - p2[1]) * slopeY;
+
+			for (int x = startX; x < endX; ++x) {
+				int imgX = (x - p1[0]) * slopeX;
+
+				Draw(x, y, img.sprite->GetPixel(imgX, imgY));
+			}
+		}
+	}
+	
 
 	void drawAxis() {
 		int x0 = -minX * (w / (maxX - minX));
@@ -172,12 +210,27 @@ public:
 	}
 
 
+	void waitFinish() {
+		graphThread.join();
+	}
+
+
 	Point pointToScreenSpace(const Point& p) {
 		// we need to map X coordinate from [minX, maxX] to [0, w] (and similar with Y)
 
 		Point screenSpace;
 		screenSpace.x = (p.x - minX) * (w / (maxX - minX));
 		screenSpace.y = h - (p.y - minY) * (h / (maxY - minY));
+
+		return screenSpace;
+	}
+
+	vector<double> pointToScreenSpace(double x, double y) {
+		// we need to map X coordinate from [minX, maxX] to [0, w] (and similar with Y)
+
+		vector<double> screenSpace(2);
+		screenSpace[0] = (x - minX) * (w / (maxX - minX));
+		screenSpace[1] = h - (y - minY) * (h / (maxY - minY));
 
 		return screenSpace;
 	}
