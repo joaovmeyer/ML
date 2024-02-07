@@ -8,7 +8,9 @@
 #include <string>
 #include <unordered_set>
 #include <cmath>
+#include <memory>
 
+#include "matrix.h"
 #include "vector.h"
 #include "rng.h"
 using namespace std;
@@ -16,32 +18,11 @@ using namespace std;
 
 
 
-
-
-
 bool isNumeric(const std::string& str) {
-	if (str.empty()) {
-		return true;
-	}
-
-	if (str[0] == '-' && str.size() == 1) {
-		return false;
-	}
-
-	size_t startIdx = str[0] == '-' ? 1 : 0;
-	bool decimalPointFound = false;
-
-	for (size_t i = startIdx; i < str.size(); ++i) {
-		if (!std::isdigit(str[i])) {
-			if (str[i] == '.' && !decimalPointFound && i > startIdx) {
-				decimalPointFound = true;
-			} else {
-				return false;
-			}
-		}
-	}
-
-	return true;
+	char* p;
+	strtod(str.c_str(), &p);
+    
+	return *p == 0;
 }
 
 
@@ -117,10 +98,11 @@ std::vector<std::string> split(std::string& s, char del = ' ') {
 struct DataPoint {
 	Vec x;
 	Vec y;
-	size_t dim;
+	size_t dimX, dimY;
 
 	DataPoint(const Vec& x = Vec(), const Vec& y = Vec()) : x(x), y(y) {
-		dim = x.size;
+		dimX = x.size;
+		dimY = y.size;
 	}
 
 
@@ -145,11 +127,13 @@ std::ostream& operator<<(std::ostream& os, const DataPoint& dataPoint) {
 
 
 struct Dataset {
-	std::vector<DataPoint> dataPoints;
+	std::vector<std::shared_ptr<DataPoint>> dataPoints;
+//	std::vector<DataPoint> dataPoints;
 	std::vector<std::string> labels;
 
 	size_t size = 0;
 	size_t dim = 0;
+	size_t dimX = 0, dimY = 0;
 
 	Vec minX;
 	Vec maxX;
@@ -163,34 +147,34 @@ struct Dataset {
 
 	DataPoint& operator [] (int i) {
 		if (i < 0) {
-			return dataPoints[size + i];
+			return *dataPoints[size + i];
 		}
-		return dataPoints[i];
+		return *dataPoints[i];
 	}
 
 	DataPoint operator [] (int i) const {
 		if (i < 0) {
-			return dataPoints[size + i];
+			return *dataPoints[size + i];
 		}
-		return dataPoints[i];
+		return *dataPoints[i];
 	}
 
 
 
 	void normalize(double min = 0, double max = 1) {
 
-		minX = dataPoints[0].x;
-		maxX = dataPoints[0].x;
+		minX = dataPoints[0]->x;
+		maxX = dataPoints[0]->x;
 
-		minY = dataPoints[0].y;
-		maxY = dataPoints[0].y;
+		minY = dataPoints[0]->y;
+		maxY = dataPoints[0]->y;
 
 		for (size_t i = 1; i < size; ++i) {
-			minX = Vec::min(dataPoints[i].x, minX);
-			maxX = Vec::max(dataPoints[i].x, maxX);
+			minX = Vec::min(dataPoints[i]->x, minX);
+			maxX = Vec::max(dataPoints[i]->x, maxX);
 
-		//	minY = Vec::min(dataPoints[i].y, minY);
-		//	maxY = Vec::max(dataPoints[i].y, maxY);
+		//	minY = Vec::min(dataPoints[i]->y, minY);
+		//	maxY = Vec::max(dataPoints[i]->y, maxY);
 		}
 
 		for (size_t i = 0; i < maxX.size; ++i) {
@@ -206,8 +190,8 @@ struct Dataset {
 		}*/
 
 		for (size_t i = 0; i < size; ++i) {
-			dataPoints[i].x = min + (max - min) * ((dataPoints[i].x - minX) / (maxX - minX));
-		//	dataPoints[i].y = min + (max - min) * ((dataPoints[i].y - minY) / (maxY - minY));
+			dataPoints[i]->x = min + (max - min) * ((dataPoints[i]->x - minX) / (maxX - minX));
+		//	dataPoints[i]->y = min + (max - min) * ((dataPoints[i]->y - minY) / (maxY - minY));
 		}
 	}
 
@@ -216,38 +200,42 @@ struct Dataset {
 		Vec mean = Vec::zeros(dim);
 
 		for (size_t i = 0; i < size; ++i) {
-			mean += dataPoints[i].x;
+			mean += dataPoints[i]->x;
 		}
 
 		mean = mean / size;
 
 		for (size_t i = 0; i < size; ++i) {
-			dataPoints[i].x -= mean;
+			dataPoints[i]->x -= mean;
 		}
 	}
 
 
 	void add(const DataPoint& dataPoint) {
-		dim = dataPoint.dim;
-		dataPoints.push_back(std::move(dataPoint));
+		dim = dataPoint.dimX;
+		dimX = dataPoint.dimX;
+		dimY = dataPoint.dimY;
+		dataPoints.push_back(std::make_shared<DataPoint>(dataPoint));
 		++size;
 	}
 
 	// should be working
-	void shuffle() {
+	Dataset& shuffle() {
 		size_t i = size;
 		
 		while (i > 1) {
 			int rand = rng::fromUniformDistribution(0, --i);
 			std::swap(dataPoints[i], dataPoints[rand]);
-		}	
+		}
+
+		return *this;
 	}
 
 	void sort(int axis = 0) {
 		std::sort(
 			dataPoints.begin(), dataPoints.end(),
-			[axis](DataPoint& a, DataPoint& b) {
-				return a.x[axis] < b.x[axis];
+			[axis](const std::shared_ptr<DataPoint>& a, const std::shared_ptr<DataPoint>& b) {
+				return a->x[axis] < b->x[axis];
 			}
 		);
 	}
@@ -256,7 +244,7 @@ struct Dataset {
 
 	DataPoint& getRandom() {
 		int rand = rng::fromUniformDistribution(0, size - 1);
-		return dataPoints[rand];
+		return *dataPoints[rand];
 	}
 
 
@@ -274,7 +262,7 @@ struct Dataset {
 
 		size_t index = std::lower_bound(cumulativeProb.begin(), cumulativeProb.end(), randomValue) - cumulativeProb.begin();
 
-		return dataPoints[index];
+		return *dataPoints[index];
 	}
 
 	DataPoint& getRandom(const Vec& weights) {
@@ -291,12 +279,21 @@ struct Dataset {
 
 		size_t index = std::lower_bound(cumulativeProb.begin(), cumulativeProb.end(), randomValue) - cumulativeProb.begin();
 
-		return dataPoints[index];
+		return *dataPoints[index];
 	}
 
 
+	// shuffling the entire dataset is not good for this, try generating n unique random values instead
+	static Dataset sample(Dataset dataset, size_t n = 1) {
+		Dataset ans;
+		dataset.shuffle();
 
+		for (size_t i = 0; i < n; ++i) {
+			ans.add(dataset[i]);
+		}
 
+		return ans;
+	}
 
 
 
@@ -324,8 +321,8 @@ struct Dataset {
 
 
 	static vector<Mat> asMatrix(const Dataset& dataset) {
-		Mat X(dataset.size, dataset.dim);
-		Mat Y(dataset.size, dataset[0].y.size);
+		Mat X(dataset.size, dataset.dimX);
+		Mat Y(dataset.size, dataset.dimY);
 
 		for (size_t i = 0; i < dataset.size; ++i) {
 			X[i] = dataset[i].x;
@@ -380,10 +377,12 @@ struct Dataset {
 		// close the file
 		file.close();
 
+		size_t yCol = 0; // data[0].size - 1;
+
 		for (size_t i = 0; i < onlyNumeric.size(); ++i) {
 			encoded.push_back(std::vector<Vec>());
 
-			if (onlyNumeric[i]) continue;
+			if (onlyNumeric[i] && i != yCol) continue;
 
 			std::unordered_set<std::string> set = types[i];
 
@@ -401,8 +400,8 @@ struct Dataset {
 			Vec x, y;
 
 			for (size_t j = 0; j < data[i].size(); ++j) {
-				if (onlyNumeric[j]) {
-					if (j == 0 /*data[i].size() - 1*/) {
+				if (onlyNumeric[j] && j != yCol) {
+					if (j == data[i].size() - 1) {
 						y.add(convertString<double>(data[i][j]));
 					} else {
 						x.add(convertString<double>(data[i][j]));
@@ -414,7 +413,7 @@ struct Dataset {
 				auto it = types[j].find(data[i][j]);
 				int index = std::distance(types[j].begin(), it);
 
-				if (j == 0 /*data[i].size() - 1*/) {
+				if (j == yCol) {
 					y.add(encoded[j][index]);
 				} else {
 					x.add(encoded[j][index]);
@@ -440,7 +439,7 @@ struct Dataset {
 
 std::ostream& operator<<(std::ostream& os, const Dataset& dataset) {
 	for (size_t i = 0; i < dataset.size; ++i) {
-		os << dataset.dataPoints[i] << "\n";
+		os << dataset[i] << "\n";
 	}
 	return os;
 }
