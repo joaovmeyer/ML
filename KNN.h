@@ -2,6 +2,7 @@
 #define KNN_H
 
 #include <vector>
+#include <cmath>
 
 #include "dataset.h"
 #include "vector.h"
@@ -9,8 +10,7 @@
 
 
 struct KNNSearch {
-	virtual vector<DataPoint> getKNN(const DataPoint& point, int k) = 0;
-//	virtual vector<DataPoint> getNeighborsInRadius(DataPoint& point, int r) = 0; -> will use in DBSCAN
+	virtual vector<std::shared_ptr<DataPoint>> getKNN(const DataPoint& point, int k) = 0;
 };
 
 struct KDTreeSearch : KNNSearch {
@@ -20,7 +20,7 @@ struct KDTreeSearch : KNNSearch {
 		tree = KDTree::build(dataset, 1); 
 	}
 
-	vector<DataPoint> getKNN(const DataPoint& point, int k) override {
+	vector<std::shared_ptr<DataPoint>> getKNN(const DataPoint& point, int k) override {
 		return tree.getKNN(point, k);
 	}
 };
@@ -33,8 +33,8 @@ struct LinearSearch : KNNSearch {
 
 	}
 
-	vector<DataPoint> getKNN(const DataPoint& point, int k) override {
-		vector<DataPoint> KNN;
+	vector<std::shared_ptr<DataPoint>> getKNN(const DataPoint& point, int k) override {
+		vector<std::shared_ptr<DataPoint>> KNN;
 		vector<double> distances;
 
 		for (size_t i = 0; i < dataset.size; ++i) {
@@ -45,8 +45,6 @@ struct LinearSearch : KNNSearch {
 
 			// insert new distance at right spot
 			vector<double>::iterator it1 = std::lower_bound(distances.begin(), distances.end(), dst);
-			int index = it1 - distances.begin();
-			vector<DataPoint>::iterator it2 = KNN.begin() + index;
 
 			if (distances.size() == k) {
 				distances.pop_back();
@@ -54,7 +52,7 @@ struct LinearSearch : KNNSearch {
 			}
 
 			distances.insert(it1, dst);
-			KNN.insert(it2, dataset[i]);
+			KNN.insert(KNN.begin() + (it1 - distances.begin()), dataset.dataPoints[i]);
 		}
 
 		return KNN;
@@ -71,7 +69,7 @@ struct KNN {
 	}
 
 	void fit(Dataset& dataset) {
-		if (1 << dataset.dim < dataset.size * 5) {
+		if (std::pow(2.0, dataset.dim) < dataset.size * 5) {
 			searcher = std::make_unique<KDTreeSearch>(dataset);
 		} else { // not enough points
 			searcher = std::make_unique<LinearSearch>(dataset);
@@ -80,17 +78,17 @@ struct KNN {
 
 
 	Vec predict(const DataPoint& point) {
-		vector<DataPoint> KNN = searcher->getKNN(point, k);
+		vector<std::shared_ptr<DataPoint>> KNN = searcher->getKNN(point, k);
 
 		Vec classes;
 		Vec classesCount;
 
 		for (int i = 0; i < k; ++i) {
-			Vec type = KNN[i].y;
+			Vec type = KNN[i]->y;
 
 			int j;
 			for (j = 0; j < classes.size; ++j) {
-				if (KNN[classes[j]].y == type) {
+				if (KNN[classes[j]]->y == type) {
 					++classesCount[j];
 					break;
 				}
@@ -103,7 +101,7 @@ struct KNN {
 		}
 
 		// return the predominant type among KNN
-		return KNN[classes[Vec::argmax(classesCount)]].y;
+		return KNN[classes[Vec::argmax(classesCount)]]->y;
 	}
 };
 
