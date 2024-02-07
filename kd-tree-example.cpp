@@ -3,9 +3,11 @@
 #include <iostream>
 
 #include "graph.h"
+#include "matrix.h"
 #include "vector.h"
 #include "dataset.h"
-#include "kd-tree.h"
+#include "rng.h"
+#include "kd-tree-other.h"
 
 using namespace std;
 
@@ -40,9 +42,9 @@ int main() {
 	Graph graph;
 	Dataset test;
 
-	for (int i = 0; i < 1000; ++i) {
-		double x = test.rng.fromUniformDistribution(0.0, 5.0);
-		double y = test.rng.fromUniformDistribution(0.0, 5.0);
+	for (int i = 0; i < 50000; ++i) {
+		double x = rng::fromUniformDistribution(0.0, 5.0);
+		double y = rng::fromUniformDistribution(0.0, 5.0);
 
 		test.add(DataPoint(Vec({ x, y })));
 		graph.addPoint(Point(x, y));
@@ -54,7 +56,7 @@ int main() {
 	KDTree tree = KDTree::build(test, 1);
 
 	// draws the tree
-	drawNode(tree.root, graph, 0, 5, 0, 5);
+//	drawNode(tree.root, graph, 0, 5, 0, 5);
 
 	Line bound;
 	bound.addPoint(Point(0, 5));
@@ -63,13 +65,13 @@ int main() {
 	graph.addLine(bound);
 
 	// get 3 nearest neighbors
-	vector<DataPoint> KNN = tree.getKNN(sample, 3);
+	vector<std::shared_ptr<DataPoint>> KNN = tree.getNeighborsInRadius(sample, 2.5);
 
-	// points nearest neighbors green
+	// paints nearest neighbors green
 	for (size_t i = 0; i < KNN.size(); ++i) {
 		for (size_t j = 0; j < graph.points.size(); ++j) {
 
-			if (KNN[i].x[0] == graph.points[j].x && KNN[i].x[1] == graph.points[j].y) {
+			if (KNN[i]->x[0] == graph.points[j].x && KNN[i]->x[1] == graph.points[j].y) {
 				graph.points[j].color = olc::GREEN;
 				break;
 			}
