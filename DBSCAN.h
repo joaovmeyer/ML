@@ -7,12 +7,12 @@
 
 #include "dataset.h"
 #include "vector.h"
-#include "kd-tree-other.h"
+#include "kd-tree.h"
 
 using namespace std;
 
 struct NeighborsSearcher {
-	virtual vector<DataPoint*> getNeighborsInRadius(const DataPoint& point, double r) = 0;
+	virtual vector<std::shared_ptr<DataPoint>> getNeighborsInRadius(const DataPoint& point, double r) = 0;
 };
 
 struct KDTreeSearch : NeighborsSearcher {
@@ -22,7 +22,7 @@ struct KDTreeSearch : NeighborsSearcher {
 		tree = KDTree::build(dataset, 1); 
 	}
 
-	vector<DataPoint*> getNeighborsInRadius(const DataPoint& point, double r) override {
+	vector<std::shared_ptr<DataPoint>> getNeighborsInRadius(const DataPoint& point, double r) override {
 		return tree.getNeighborsInRadius(point, r);
 	}
 };
@@ -35,14 +35,14 @@ struct LinearSearch : NeighborsSearcher {
 
 	}
 
-	vector<DataPoint*> getNeighborsInRadius(const DataPoint& point, double r) override {
-		vector<DataPoint*> neighbors;
+	vector<std::shared_ptr<DataPoint>> getNeighborsInRadius(const DataPoint& point, double r) override {
+		vector<std::shared_ptr<DataPoint>> neighbors;
 
 		for (size_t i = 0; i < dataset.size; ++i) {
 			double dst = DataPoint::squaredEuclideanDistance(dataset[i], point);
 
 			if (dst <= r * r) {
-				neighbors.push_back(&dataset[i]);
+				neighbors.push_back(dataset.dataPoints[i]);
 			}
 		}
 
@@ -73,41 +73,44 @@ struct DBSCAN {
 
 		vector<vector<DataPoint>> clusters;
 
-		// maps each datapoint to it's cluster index
-		unordered_map<DataPoint*, int> info;
+		// maps each datapoint to it's cluster info
+		unordered_map<std::shared_ptr<DataPoint>, int> info;
 		for (size_t i = 0; i < dataset.size; ++i) {
-			info[&dataset[i]] = -1;
+			info[dataset.dataPoints[i]] = NO_CLUSTER;
 		}
 
-
 		for (size_t i = 0; i < dataset.size; ++i) {
 
-			if (info[&dataset[i]] != -1) {
+			// we already handled this point
+			if (info[dataset.dataPoints[i]] != NO_CLUSTER) {
 				continue;
 			}
 
-			vector<DataPoint*> neighbors = searcher->getNeighborsInRadius(dataset[i], epsilon);
+			vector<std::shared_ptr<DataPoint>> neighbors = searcher->getNeighborsInRadius(dataset[i], epsilon);
 
+			// not enough neighbors to make a new cluster
 			if (neighbors.size() < minPoints) {
-				info[&dataset[i]] = NOISE;
+				info[dataset.dataPoints[i]] = NOISE;
 				continue;
 			}
 
-			vector<DataPoint> cluster;
-			clusters.push_back(cluster);
-
+			size_t clusterIdx = clusters.size();
+			clusters.resize(clusterIdx + 1);
 
 			for (size_t j = 0; j < neighbors.size(); ++j) {
+
 				if (info[neighbors[j]] == NOISE) {
-					clusters[clusters.size() - 1].push_back(*neighbors[j]);
+					clusters[clusterIdx].push_back(*neighbors[j]);
 					info[neighbors[j]] = CLUSTER;
 				}
-				if (info[neighbors[j]] != -1) continue;
 
-				clusters[clusters.size() - 1].push_back(*neighbors[j]);
+				// point was noise (now border point), should not extend the cluster
+				if (info[neighbors[j]] != NO_CLUSTER) continue;
+
+				clusters[clusterIdx].push_back(*neighbors[j]);
 				info[neighbors[j]] = CLUSTER;
 
-				vector<DataPoint*> newNeighbors = searcher->getNeighborsInRadius(*neighbors[j], epsilon);
+				vector<std::shared_ptr<DataPoint>> newNeighbors = searcher->getNeighborsInRadius(*neighbors[j], epsilon);
 
 				if (newNeighbors.size() >= minPoints) {
 					neighbors.insert(
