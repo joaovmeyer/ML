@@ -7,6 +7,7 @@
 #include "matrix.h"
 #include "vector.h"
 #include "dataset.h"
+#include "rng.h"
 #include "DBSCAN.h"
 
 using namespace std;
@@ -18,9 +19,9 @@ using namespace std;
 void addPointsFromCircle(int n, double r, double centerX, double centerY, Dataset& dataset, Graph& graph) {
 
 	for (int i = 0; i < n; ++i) {
-		double angle = dataset.rng.fromUniformDistribution(0.0, 2 * PI);
+		double angle = rng::fromUniformDistribution(0.0, 2 * PI);
 
-		double radius = r + dataset.rng.fromNormalDistribution(0, 0.4) * dataset.rng.fromNormalDistribution(0, 0.4); // a little bit of noise
+		double radius = r + rng::fromNormalDistribution(0, 0.4) * rng::fromNormalDistribution(0, 0.4); // a little bit of noise
 
 		double x = centerX + radius * std::cos(angle);
 		double y = centerY + radius * std::sin(angle);
