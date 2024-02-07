@@ -7,7 +7,7 @@
 #include "vector.h"
 #include "dataset.h"
 #include "rng.h"
-#include "kd-tree-other.h"
+#include "kd-tree.h"
 
 using namespace std;
 
