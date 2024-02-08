@@ -12,9 +12,6 @@
 
 using namespace std;
 
-#define PI 3.1415926535
-
-
 
 void addPointsFromCircle(int n, double r, double centerX, double centerY, Dataset& dataset, Graph& graph) {
 
@@ -31,19 +28,19 @@ void addPointsFromCircle(int n, double r, double centerX, double centerY, Datase
 	}
 }
 
-
-
 int main() {
-
-
 	Graph graph(800, 650, 1, 1);
 
 	Dataset test;
 
-	addPointsFromCircle(500, 2, 0, 0, test, graph);
+	addPointsFromCircle(800, 2, 0, 0, test, graph);
 	addPointsFromCircle(500, 1, 0, 0, test, graph);
 
-	DBSCAN model(0.25, 5);
+	int minPts;
+	cin >> minPts;
+	cout << "\n";
+
+	DBSCAN model(minPts);
 
 
 	olc::Pixel colors[10] = {
@@ -63,9 +60,6 @@ int main() {
 	vector<vector<DataPoint>> clusters = model.fit(test);
 
 	for (size_t i = 0; i < clusters.size(); ++i) {
-
-		cout << "Cluster " << i << ", length " << clusters[i].size() << ":\n";
-
 		for (size_t j = 0; j < clusters[i].size(); ++j) {
 			for (size_t k = 0; k < test.size; ++k) {
 				if (test[k] == clusters[i][j]) {
