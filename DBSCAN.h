@@ -51,12 +51,62 @@ struct LinearSearch : NeighborsSearcher {
 };
 
 
+struct KNNSearch {
+	virtual vector<std::shared_ptr<DataPoint>> getKNN(const DataPoint& point, int k) = 0;
+};
+
+struct KNNKDTreeSearch : KNNSearch {
+	KDTree tree;
+
+	KNNKDTreeSearch(Dataset& dataset) {
+		tree = KDTree::build(dataset, 1); 
+	}
+
+	vector<std::shared_ptr<DataPoint>> getKNN(const DataPoint& point, int k) override {
+		return tree.getKNN(point, k);
+	}
+};
+
+struct KNNLinearSearch : KNNSearch {
+	Dataset dataset;
+
+	KNNLinearSearch(Dataset& dataset) : dataset(dataset) {
+
+	}
+
+	vector<std::shared_ptr<DataPoint>> getKNN(const DataPoint& point, int k) override {
+		vector<std::shared_ptr<DataPoint>> KNN;
+		vector<double> distances;
+
+		for (size_t i = 0; i < dataset.size; ++i) {
+			double dst = DataPoint::squaredEuclideanDistance(dataset[i], point);
+
+			// the distance is greater than the last, it will not go in.
+			if (distances.size() == k && dst > distances[k - 1]) continue;
+
+			// insert new distance at right spot
+			vector<double>::iterator it1 = std::lower_bound(distances.begin(), distances.end(), dst);
+
+			if (distances.size() == k) {
+				distances.pop_back();
+				KNN.pop_back();
+			}
+
+			distances.insert(it1, dst);
+			KNN.insert(KNN.begin() + (it1 - distances.begin()), dataset.dataPoints[i]);
+		}
+
+		return KNN;
+	}
+};
+
+
 struct DBSCAN {
 	std::unique_ptr<NeighborsSearcher> searcher;
 	double epsilon;
 	int minPoints;
 
-	DBSCAN(double epsilon, int minPoints) : epsilon(epsilon), minPoints(minPoints) {
+	DBSCAN(int minPoints, double epsilon = 0) : epsilon(epsilon), minPoints(minPoints) {
 
 	}
 
@@ -65,6 +115,11 @@ struct DBSCAN {
 			searcher = std::make_unique<KDTreeSearch>(dataset);
 		} else { // not enough points
 			searcher = std::make_unique<LinearSearch>(dataset);
+		}
+
+		if (epsilon <= 0) {
+			epsilon = DBSCAN::tuneEps(dataset, minPoints);
+			cout << "Using epsilon = " << epsilon << "\n";
 		}
 
 		#define NO_CLUSTER -1
@@ -124,7 +179,49 @@ struct DBSCAN {
 
 		return clusters;
 	}
-};
 
+
+	static double tuneEps(Dataset& dataset, int minPoints) {
+		std::unique_ptr<KNNSearch> KNNSearcher;
+		if (std::pow(2.0, dataset.dim) < dataset.size * 5) {
+			KNNSearcher = std::make_unique<KNNKDTreeSearch>(dataset);
+		} else { // not enough points
+			KNNSearcher = std::make_unique<KNNLinearSearch>(dataset);
+		}
+
+		// get k-distance information
+		vector<double> distances(dataset.size);
+		for (size_t i = 0; i < dataset.size; ++i) {
+			vector<std::shared_ptr<DataPoint>> KNN = KNNSearcher->getKNN(dataset[i], minPoints);
+			distances[i] = Vec::euclideanDistance(dataset[i].x, KNN[minPoints - 1]->x);
+		}
+
+		std::sort(
+			distances.begin(), distances.end(),
+			[&](double a, double b) {
+				return a < b;
+			}
+		);
+
+
+		// find "elbow" of the k-distance graph
+		// https://raghavan.usc.edu/papers/kneedle-simplex11.pdf
+		float maxDst = 0;
+	    size_t elbowPoint = 0;
+
+	    float m = (distances[dataset.size - 1] - distances[0]) / dataset.size;
+
+		for (size_t i = 0; i < dataset.size; ++i) {
+
+			float dst = m * i - distances[i];
+			if (dst > maxDst) {
+				maxDst = dst;
+				elbowPoint = i;
+			}
+		}
+
+		return distances[elbowPoint];
+	}
+};
 
 #endif
