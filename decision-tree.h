@@ -44,22 +44,26 @@ struct DecisionTree {
 			return predictNode(node->right, dataPoint);
 		}
 
-		std::map<vector<double>, size_t> classesCount;
-		Vec popularClass = node->dataPoints[0]->y;
+		Vec classes;
+		Vec classesCount;
 
 		for (size_t i = 0; i < node->dataPoints.size(); ++i) {
-			if (classesCount.find(node->dataPoints[i]->y.data) != classesCount.end()) {
 
-				if (++classesCount[node->dataPoints[i]->y.data] > classesCount[popularClass.data]) {
-					popularClass = node->dataPoints[i]->y;
+			int j;
+			for (j = 0; j < classes.size; ++j) {
+				if (node->dataPoints[classes[j]]->y == node->dataPoints[i]->y) {
+					++classesCount[j];
+					break;
 				}
+			}
 
-			} else {
-				classesCount[node->dataPoints[i]->y.data] = 1;
+			if (j >= classes.size) {
+				classes.add(i);
+				classesCount.add(1);
 			}
 		}
 
-		return popularClass;
+		return node->dataPoints[classes[Vec::argmax(classesCount)]]->y;
 	}
 
 
