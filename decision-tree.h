@@ -26,7 +26,8 @@ struct DecisionTree {
 
 
 	void fit(const Dataset& dataset, int maxDepth = 10000, int minSamplesSplit = 2, int minSamplesLeaf = 1) {
-		buildNode(root, dataset.dataPoints, maxDepth, minSamplesSplit, minSamplesLeaf);
+		vector<std::shared_ptr<DataPoint>> dataPoints = dataset.dataPoints;
+		buildNode(root, dataPoints, maxDepth, minSamplesSplit, minSamplesLeaf);
 	}
 
 	Vec predict(const DataPoint& dataPoint) {
@@ -110,7 +111,7 @@ struct DecisionTree {
 	}
 
 
-	void buildNode(std::unique_ptr<DecisionNode>& node, const vector<std::shared_ptr<DataPoint>>& dataPoints, 
+	void buildNode(std::unique_ptr<DecisionNode>& node, vector<std::shared_ptr<DataPoint>>& dataPoints, 
 					int splitsLeft = 0, int minSamplesSplit = 2, int minSamplesLeaf = 1) {
 
 		double currImpurity = impurity(dataPoints);
@@ -130,9 +131,30 @@ struct DecisionTree {
 		vector<vector<std::shared_ptr<DataPoint>>> bestDivision;
 
 		// find best split axis and point (by maximizing information gain)
-		for (size_t i = 0; i < dataPoints.size(); ++i) {
-			for (int axis = 0; axis < dataPoints[i]->dimX; ++axis) {
-				double point = dataPoints[i]->x[axis];
+		for (int axis = 0; axis < dataPoints[0]->dimX; ++axis) {
+
+			// sorting the data points allows us to consider way less splits
+			// and that generally leads to a good performance gain
+			std::sort(
+				dataPoints.begin(), dataPoints.end(),
+				[&](const std::shared_ptr<DataPoint>& a, const std::shared_ptr<DataPoint>& b) {
+					return a->x[axis] < b->x[axis];
+				}
+			);
+
+			for (size_t i = 0; i < dataPoints.size() - 1; ++i) {
+
+				// this is where having sorted data points is usefull.
+				// if the next data points is of the same class as the current,
+				// there's no reason not to include it in the split, or no reason
+				// to split this at all.
+				if (dataPoints[i]->y == dataPoints[i + 1]->y) {
+					continue;
+				}
+
+				// split in between two points
+				double point = (dataPoints[i]->x[axis] + dataPoints[i]->x[axis]) * 0.5;
+
 				vector<vector<std::shared_ptr<DataPoint>>> division = partition(dataPoints, axis, point);
 
 				if (division[0].size() < minSamplesLeaf || division[1].size() < minSamplesLeaf) {
