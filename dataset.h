@@ -309,7 +309,7 @@ struct Dataset {
 
 
 
-	static vector<Dataset> split(const Dataset& dataset, const vector<double>& sizes, bool shuffleBeforeSplit = false) {
+	static vector<Dataset> split(Dataset& dataset, const vector<double>& sizes, bool shuffleBeforeSplit = false) {
 		if (shuffleBeforeSplit) {
 			dataset.shuffle();
 		}
