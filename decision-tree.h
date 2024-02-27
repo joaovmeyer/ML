@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <map>
+#include <numeric>
 
 #include "dataset.h"
 #include "vector.h"
@@ -25,9 +26,14 @@ struct DecisionTree {
 	std::unique_ptr<DecisionNode> root = std::make_unique<DecisionNode>();
 
 
-	void fit(const Dataset& dataset, int maxDepth = 10000, int minSamplesSplit = 2, int minSamplesLeaf = 1) {
+	void fit(const Dataset& dataset, int maxDepth = 10000, int minSamplesSplit = 2, int minSamplesLeaf = 1, vector<int> features = {}) {
 		vector<std::shared_ptr<DataPoint>> dataPoints = dataset.dataPoints;
-		buildNode(root, dataPoints, maxDepth, minSamplesSplit, minSamplesLeaf);
+		if (features.size() == 0) {
+			features.resize(dataset.dimX);
+			std::iota(features.begin(), features.end(), 0);
+		}
+
+		buildNode(root, dataPoints, maxDepth, minSamplesSplit, minSamplesLeaf, features);
 	}
 
 	Vec predict(const DataPoint& dataPoint) {
@@ -116,7 +122,7 @@ struct DecisionTree {
 
 
 	void buildNode(std::unique_ptr<DecisionNode>& node, vector<std::shared_ptr<DataPoint>>& dataPoints, 
-					int splitsLeft = 0, int minSamplesSplit = 2, int minSamplesLeaf = 1) {
+					int splitsLeft = 0, int minSamplesSplit = 2, int minSamplesLeaf = 1, vector<int> features = {}) {
 
 		double currImpurity = impurity(dataPoints);
 
@@ -135,7 +141,8 @@ struct DecisionTree {
 		vector<vector<std::shared_ptr<DataPoint>>> bestDivision;
 
 		// find best split axis and point (by maximizing information gain)
-		for (int axis = 0; axis < dataPoints[0]->dimX; ++axis) {
+		for (int axis : features) {
+	//	for (int axis = 0; axis < dataPoints[0]->dimX; ++axis) {
 
 			// sorting the data points allows us to consider way less splits
 			// and that generally leads to a good performance gain
@@ -190,8 +197,8 @@ struct DecisionTree {
 		node->left = std::make_unique<DecisionNode>(), 
 		node->right = std::make_unique<DecisionNode>();
 
-		buildNode(node->left, bestDivision[0], splitsLeft - 1, minSamplesSplit, minSamplesLeaf);
-		buildNode(node->right, bestDivision[1], splitsLeft - 1, minSamplesSplit, minSamplesLeaf);
+		buildNode(node->left, bestDivision[0], splitsLeft - 1, minSamplesSplit, minSamplesLeaf, features);
+		buildNode(node->right, bestDivision[1], splitsLeft - 1, minSamplesSplit, minSamplesLeaf, features);
 	}
 };
 
