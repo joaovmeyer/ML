@@ -295,11 +295,24 @@ struct Dataset {
 		return ans;
 	}
 
+	static Dataset bootstrappedSample(Dataset dataset, size_t n = 1) {
+		Dataset ans;
+
+		for (size_t i = 0; i < n; ++i) {
+			int rand = rng::fromUniformDistribution(0, dataset.size - 1);
+			ans.add(dataset[rand]);
+		}
+
+		return ans;
+	}
 
 
 
-	static vector<Dataset> split(const Dataset& dataset, const vector<double>& sizes) {
-	//	dataset.shuffle();
+
+	static vector<Dataset> split(const Dataset& dataset, const vector<double>& sizes, bool shuffleBeforeSplit = false) {
+		if (shuffleBeforeSplit) {
+			dataset.shuffle();
+		}
 
 		Vec ranges = Vec::prefixSum(Vec(sizes) / Vec::sum(Vec(sizes))) * dataset.size;
 
@@ -377,7 +390,7 @@ struct Dataset {
 		// close the file
 		file.close();
 
-		size_t yCol = 0; // data[0].size - 1;
+		size_t yCol = data[0].size() - 1;
 
 		for (size_t i = 0; i < onlyNumeric.size(); ++i) {
 			encoded.push_back(std::vector<Vec>());
