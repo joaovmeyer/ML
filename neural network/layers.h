@@ -48,8 +48,8 @@ Vec multiplyMatTranspose(const Mat& m, const Vec& v) {
 
 
 struct Layer {
-    virtual Vec forward(Vec input) = 0;
-    virtual Vec backwards(Vec outputGrad) = 0;
+    virtual Vec forward(const Vec& input) = 0;
+    virtual Vec backwards(const Vec& outputGrad) = 0;
 };
 
 
@@ -66,7 +66,7 @@ struct FullyConnected : Layer {
 	}
 
 
-	Vec forward(Vec inp) override {
+	Vec forward(const Vec& inp) override {
 		// save layer's input and pre-activation value. Will use in backwards pass
 		input = inp;
 		z = W * inp + B;
@@ -74,13 +74,13 @@ struct FullyConnected : Layer {
 		return activation(z);
 	}
 
-	Vec backwards(Vec outputGrad) override {
-		outputGrad = Vec::hadamard(outputGrad, activationDerivative(z));
+	Vec backwards(const Vec& outputGrad) override {
+		Vec grad = Vec::hadamard(outputGrad, activationDerivative(z));
 	//	Vec inputGrad = Mat::transpose(W) * outputGrad;
-		Vec inputGrad = multiplyMatTranspose(W, outputGrad);
+		Vec inputGrad = multiplyMatTranspose(W, grad);
 
-		W -= Vec::outer(outputGrad, input);
-		B -= outputGrad;
+		W -= Vec::outer(grad, input);
+		B -= grad;
 
 		return inputGrad;
 	}
