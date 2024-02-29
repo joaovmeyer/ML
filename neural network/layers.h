@@ -24,11 +24,11 @@ Vec activationDerivative(const Vec& x) {
 	return Vec::hadamard(s, 1 - s);
 }
 
-double cost(Vec& pred, Vec& y) {
+double cost(const Vec& pred, const Vec& y) {
 	return Vec::sum((pred - y) ^ 2);
 }
 
-Vec costDerivative(Vec& pred, Vec& y) {
+Vec costDerivative(const Vec& pred, const Vec& y) {
 	return pred - y;
 }
 
