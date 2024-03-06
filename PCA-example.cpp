@@ -1,10 +1,6 @@
-#include <stdio.h>
-#include <vector>
 #include <iostream>
 
 #include "graph.h"
-#include "matrix.h"
-#include "vector.h"
 #include "dataset.h"
 #include "rng.h"
 #include "PCA.h"
@@ -21,16 +17,16 @@ int main() {
 		double y = x;
 		y += rng::fromNormalDistribution(0, 0.3) * (-0.3 * x * x + 1.9); // add noise
 
-		test.add(DataPoint(Vec({ x - 2, y + 2 })));
+		test.add(DataPoint({ x - 2, y + 2 }));
 		graph.addPoint(Point(x - 2, y + 2));
 	}
 
 	PCA model;
-	Mat newPoints = model.fit(test, 1);
+	model.fit(test, 1);
 
-	for (size_t i = 0; i < newPoints.row; ++i) {
-		Vec coords = Mat::transpose(model.base) * newPoints[i];
-		graph.addPoint(Point(coords[0], coords[1]));
+	for (size_t i = 0; i < test.size; ++i) {
+		DataPoint point = model.toOriginalSpace(model.transform(test[i]));
+		graph.addPoint(Point(point.x[0], point.x[1], 2, olc::RED));
 	}
 
 	// waits untill the user closes the graph
