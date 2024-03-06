@@ -62,8 +62,9 @@ struct PCA {
 	DataPoint toOriginalSpace(const DataPoint& dataPoint) {
 		Mat point(1, dataPoint.dimX); point[0] = dataPoint.x;
 
-		// I should add the mean here, but for some reason it's not aligning properly ??
-		return DataPoint((point * Mat::transpose(base))[0], dataPoint.y);
+		// I think something is a little off after I add the mean, but it appears I'm doing everything right, so it should be right
+		// also, if you use all eigenvectors, the transformed data will already have the correct mean, but I think this is also expected
+		return DataPoint((point * Mat::transpose(base))[0] + mean, dataPoint.y);
 	}
 
 	DataPoint transform(const DataPoint& dataPoint) {
