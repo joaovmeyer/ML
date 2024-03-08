@@ -47,7 +47,7 @@ struct PCA {
 			}
 		}
 
-		base = u;
+		base = Mat::transpose(u);
 
 		// remove eigenvectors we don't want
 		base.mat.resize(components);
@@ -70,6 +70,39 @@ struct PCA {
 		Mat point(1, dataPoint.dimX); point[0] = dataPoint.x - mean;
 
 		return DataPoint((point * base)[0], dataPoint.y);
+	}
+
+	// transform entire datasets
+	Dataset toOriginalSpace(const Dataset& dataset) {
+		Mat m = Dataset::asMatrix(dataset)[0];
+
+		m = m * Mat::transpose(base);
+		for (size_t i = 0; i < m.row; ++i) {
+			m[i] += mean;
+		}
+
+		Dataset inOriginalSpace;
+		for (size_t i = 0; i < m.row; ++i) {
+			inOriginalSpace.add(DataPoint(m[i], dataset[i].y));
+		}
+
+		return inOriginalSpace;
+	}
+
+	Dataset transform(const Dataset& dataset) {
+		Mat m = Dataset::asMatrix(dataset)[0];
+		for (size_t i = 0; i < m.row; ++i) {
+			m[i] -= mean;
+		}
+
+		m = m * base;
+
+		Dataset transformed;
+		for (size_t i = 0; i < m.row; ++i) {
+			transformed.add(DataPoint(m[i], dataset[i].y));
+		}
+
+		return transformed;
 	}
 };
 
