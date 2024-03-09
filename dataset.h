@@ -135,10 +135,10 @@ struct Dataset {
 	size_t dim = 0;
 	size_t dimX = 0, dimY = 0;
 
-	Vec minX;
-	Vec maxX;
-	Vec minY;
-	Vec maxY;
+	Vec minX; double minXNormalized;
+	Vec maxX; double maxXNormalized;
+	Vec minY; double minYNormalized;
+	Vec maxY; double maxYNormalized;
 
 	Dataset() {
 
@@ -159,9 +159,30 @@ struct Dataset {
 		return *dataPoints[i];
 	}
 
+	Dataset copy() const {
+		Dataset other;
+
+		other.dataPoints.resize(size);
+		other.size = size;
+		other.dimX = dimX; other.dimY = dimY; other.dim = dim;
+
+		other.minX = minX; other.minXNormalized = minXNormalized;
+		other.maxX = maxX; other.maxXNormalized = maxXNormalized;
+		other.minY = minY; other.minYNormalized = minYNormalized;
+		other.maxY = maxY; other.maxYNormalized = maxYNormalized;
+
+		for (size_t i = 0; i < other.size; ++i) {
+			other.dataPoints[i] = std::make_shared<DataPoint>(*dataPoints[i]);
+		}
+
+		return other;
+	}
 
 
 	void normalize(double min = 0, double max = 1) {
+
+		minXNormalized = min; minYNormalized = min;
+		maxXNormalized = max; maxYNormalized = max;
 
 		minX = dataPoints[0]->x;
 		maxX = dataPoints[0]->x;
@@ -173,27 +194,109 @@ struct Dataset {
 			minX = Vec::min(dataPoints[i]->x, minX);
 			maxX = Vec::max(dataPoints[i]->x, maxX);
 
-		//	minY = Vec::min(dataPoints[i]->y, minY);
-		//	maxY = Vec::max(dataPoints[i]->y, maxY);
+			minY = Vec::min(dataPoints[i]->y, minY);
+			maxY = Vec::max(dataPoints[i]->y, maxY);
 		}
 
 		for (size_t i = 0; i < maxX.size; ++i) {
-			if (maxX[i] - minX[i] == 0) {
-				maxX[i] = 1;
-			}
+			maxX += (maxX[i] - minX[i] == 0);
+			maxY += (maxY[i] - minY[i] == 0);
 		}
-
-	/*	for (size_t i = 0; i < maxY.size; ++i) {
-			if (maxY[i] - minY[i] == 0) {
-				maxY[i] = 1;
-			}
-		}*/
 
 		for (size_t i = 0; i < size; ++i) {
 			dataPoints[i]->x = min + (max - min) * ((dataPoints[i]->x - minX) / (maxX - minX));
-		//	dataPoints[i]->y = min + (max - min) * ((dataPoints[i]->y - minY) / (maxY - minY));
+			dataPoints[i]->y = min + (max - min) * ((dataPoints[i]->y - minY) / (maxY - minY));
 		}
 	}
+
+	void normalizeX(double min = 0, double max = 1) {
+
+		minXNormalized = min;
+		maxXNormalized = max;
+
+		minX = dataPoints[0]->x;
+		maxX = dataPoints[0]->x;
+
+		for (size_t i = 1; i < size; ++i) {
+			minX = Vec::min(dataPoints[i]->x, minX);
+			maxX = Vec::max(dataPoints[i]->x, maxX);
+		}
+
+		for (size_t i = 0; i < maxX.size; ++i) {
+			maxX += (maxX[i] - minX[i] == 0);
+		}
+
+		for (size_t i = 0; i < size; ++i) {
+			dataPoints[i]->x = min + (max - min) * ((dataPoints[i]->x - minX) / (maxX - minX));
+		}
+	}
+
+	void normalizeY(double min = 0, double max = 1) {
+
+		minYNormalized = min;
+		maxYNormalized = max;
+
+		minY = dataPoints[0]->y;
+		maxY = dataPoints[0]->y;
+
+		for (size_t i = 1; i < size; ++i) {
+			minY = Vec::min(dataPoints[i]->y, minY);
+			maxY = Vec::max(dataPoints[i]->y, maxY);
+		}
+
+		for (size_t i = 0; i < maxY.size; ++i) {
+			maxY += (maxY[i] - minY[i] == 0);
+		}
+
+		for (size_t i = 0; i < size; ++i) {
+			dataPoints[i]->y = min + (max - min) * ((dataPoints[i]->y - minY) / (maxY - minY));
+		}
+	}
+
+
+	Vec unnormalizeX(const Vec& v) {
+		return Vec::hadamard((v - minXNormalized) / (maxXNormalized - minXNormalized), maxX - minX) + minX;
+	}
+
+	Vec unnormalizeY(const Vec& v) {
+		return Vec::hadamard((v - minYNormalized) / (maxYNormalized - minYNormalized), maxY - minY) + minY;
+	}
+
+
+	void clamp(double min = 0, double max = 1) {
+		for (size_t i = 0; i < size; ++i) {
+			for (size_t j = 0; j < dataPoints[i]->x.size; ++j) {
+				dataPoints[i]->x[j] += (min - dataPoints[i]->x[j]) * (dataPoints[i]->x[j] < min);
+				dataPoints[i]->x[j] += (max - dataPoints[i]->x[j]) * (dataPoints[i]->x[j] > max);
+			}
+
+			for (size_t j = 0; j < dataPoints[i]->y.size; ++j) {
+				dataPoints[i]->y[j] += (min - dataPoints[i]->y[j]) * (dataPoints[i]->y[j] < min);
+				dataPoints[i]->y[j] += (max - dataPoints[i]->y[j]) * (dataPoints[i]->y[j] > max);
+			}
+		}
+	}
+
+	void clampX(double min = 0, double max = 1) {
+		for (size_t i = 0; i < size; ++i) {
+			for (size_t j = 0; j < dataPoints[i]->x.size; ++j) {
+				dataPoints[i]->x[j] += (min - dataPoints[i]->x[j]) * (dataPoints[i]->x[j] < min);
+				dataPoints[i]->x[j] += (max - dataPoints[i]->x[j]) * (dataPoints[i]->x[j] > max);
+			}
+		}
+	}
+
+	void clampY(double min = 0, double max = 1) {
+		for (size_t i = 0; i < size; ++i) {
+			for (size_t j = 0; j < dataPoints[i]->y.size; ++j) {
+				dataPoints[i]->y[j] += (min - dataPoints[i]->y[j]) * (dataPoints[i]->y[j] < min);
+				dataPoints[i]->y[j] += (max - dataPoints[i]->y[j]) * (dataPoints[i]->y[j] > max);
+			}
+		}
+	}
+
+
+
 
 
 	void meanZero() {
@@ -442,13 +545,8 @@ struct Dataset {
 	}
 
 
-
-
-
-
-
-
 };
+
 
 std::ostream& operator<<(std::ostream& os, const Dataset& dataset) {
 	for (size_t i = 0; i < dataset.size; ++i) {
