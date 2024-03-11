@@ -25,9 +25,20 @@ struct PCA {
 			m[i] -= mean;
 		}
 
-		Mat covar = Mat::transpose(m) * m;
-		auto [u, q, v] = SVD(covar, true, false);
+		bool isHorizontal = m.col > m.row;
+		Mat mT = Mat::transpose(m);
+		Mat covar;
 
+		// SVD does not scale well, so this is meant to reduce the size of the covar matrix
+		if (isHorizontal) {
+			covar = m * mT;
+		} else {
+			covar = mT * m;
+		}
+
+
+		auto [u, q, v] = SVD(covar, true, false);
+		
 		// now u's column vectors are the eigenvectors of the covariance matrix
 		// q are the eigenvalues corresponding to the eigenvectors
 
@@ -47,13 +58,24 @@ struct PCA {
 			}
 		}
 
-		base = Mat::transpose(u);
+		Vec scale = Vec::zeros(q.size) + 1;
+		if (isHorizontal) {
+			for (size_t i = 0; i < scale.size; ++i) {
+				scale[i] = 1 / std::sqrt(q[i]);
+			}
+		}
 
-		// remove eigenvectors we don't want
-		base.mat.resize(components);
-		base.row = components; base.size[0] = components;
+		// our base will be the first `components` columns from the U matrix
+		base = Mat(u.row, components);
+		for (size_t i = 0; i < u.row; ++i) {
+			for (size_t j = 0; j < components; ++j) {
+				base[i][j] = u[i][j] * scale[j];
+			}
+		}
 
-		base.transpose();
+		if (isHorizontal) {
+			base = mT * base;
+		}
 	}
 
 
