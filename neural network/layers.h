@@ -87,4 +87,82 @@ struct FullyConnected : Layer {
 };
 
 
+struct Recurrent : Layer {
+
+	Mat W;
+	Mat U;
+	Vec B;
+
+	Vec input, output, outputLast, z, zLast;
+	Vec dhdbLast;
+	Mat dhdwLast, dhduLast;
+
+	Recurrent(int inputSize, int outputSize) {
+		W = Mat::random(outputSize, inputSize, 0., std::sqrt(2. / inputSize));
+		U = Mat::random(outputSize, outputSize, 0., std::sqrt(2. / (inputSize + outputSize)));
+	//	U = Mat(outputSize, outputSize) + 0.1;
+		B = Vec::zeros(outputSize) + 0.1;
+
+		dhdbLast = Vec::zeros(outputSize);
+		dhdwLast = Mat::zeros(W.size);
+		dhduLast = Mat::zeros(U.size);
+
+		output = Vec::zeros(outputSize);
+		z = Vec::zeros(outputSize);
+	}
+
+
+	Vec forward(const Vec& inp) override {
+		// save layer's input, pre-activation value and output. Will use in backwards pass
+		input = inp;
+		zLast = z;
+		z = W * inp + U * output + B;
+		outputLast = output;
+		output = activation(z);
+
+		return output;
+	}
+
+	Vec backwards(const Vec& outputGrad) override {
+
+		Vec ac = activationDerivative(z);
+
+		Vec grad = Vec::hadamard(outputGrad, activationDerivative(z));
+		Vec inputGrad = multiplyMatTranspose(W, grad);
+
+		Vec Uz = U * activationDerivative(zLast);
+
+		// update weights and biases
+		for (size_t i = 0; i < dhdwLast.row; ++i) {
+
+			dhdbLast[i] = Uz[i] * dhdbLast[i] + 1;
+			B -= grad[i] * dhdbLast[i];
+
+
+			for (size_t j = 0; j < dhdwLast.col; ++j) {
+				dhdwLast[i][j] = input[j] + Uz[i] * dhdwLast[i][j];
+
+				W[i][j] -= dhdwLast[i][j] * grad[i];
+			}
+
+			for (size_t j = 0; j < dhduLast.col; ++j) {
+				dhduLast[i][j] = outputLast[j] + Uz[i] * dhduLast[i][j];
+
+				U[i][j] -= dhduLast[i][j] * grad[i];
+			}
+		}
+
+		return inputGrad;
+	}
+
+	void clearMemory() {
+		dhdbLast = Vec::zeros(B.size);
+		dhdwLast = Mat::zeros(W.size);
+		dhduLast = Mat::zeros(U.size);
+
+		output = Vec::zeros(B.size);
+	}
+};
+
+
 #endif
