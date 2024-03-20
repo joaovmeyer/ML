@@ -136,7 +136,7 @@ struct Recurrent : Layer {
 		for (size_t i = 0; i < dhdwLast.row; ++i) {
 
 			dhdbLast[i] = Uz[i] * dhdbLast[i] + 1;
-			B -= grad[i] * dhdbLast[i];
+			B[i] -= grad[i] * dhdbLast[i];
 
 
 			for (size_t j = 0; j < dhdwLast.col; ++j) {
