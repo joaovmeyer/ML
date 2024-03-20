@@ -6,13 +6,16 @@
 #include <chrono>
 using namespace std;
 
+namespace rng {
 
+	std::mt19937 initializeRNG() {
+        std::mt19937 rng;
+        rng.seed(std::chrono::steady_clock::now().time_since_epoch().count());
+        return rng;
+    }
 
-struct RNG {
-	mt19937 rng;
-	RNG() {
-		rng.seed(chrono::steady_clock::now().time_since_epoch().count());
-	}
+    std::mt19937 rng = initializeRNG();
+
 
 	double fromNormalDistribution(double mean, double stddev) {
 		return normal_distribution<double>(mean, stddev)(rng);
@@ -25,13 +28,7 @@ struct RNG {
 	int fromUniformDistribution(int min, int max) {
 		return uniform_int_distribution<int>(min, max)(rng);
 	}
-};
 
-
-
-
-
-
-
+}
 
 #endif
