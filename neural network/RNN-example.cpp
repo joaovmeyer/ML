@@ -2,6 +2,7 @@
 #include <cmath>
 #include <memory>
 
+#include "graph.h"
 #include "nn-layered.h"
 
 using namespace std;
@@ -11,19 +12,19 @@ using namespace std;
 
 int main() {
 
+	Graph graph;
+
 	Network nn;
-	nn.addLayer(Recurrent(1, 5));
-	nn.addLayer(Recurrent(5, 1));
+	nn.addLayer(Recurrent(1, 40));
+	nn.addLayer(Recurrent(40, 1));
 
-	vector<vector<Vec>> XOR = {
-		{ { 0 }, { 0 }, { 0 } },
-		{ { 1 }, { 0 }, { 1 } },
-		{ { 0 }, { 1 }, { 1 } },
-		{ { 1 }, { 1 }, { 0 } }
-	};
+	vector<Vec> sequence(60, Vec::zeros(1));
+	for (int j = 0; j < 60; ++j) {
+		sequence[j][0] = (std::cos(-3.2 + 0.133 * j) + 1) * 0.5;
+	}
 
 
-	for (int i = 0; i < 50000; ++i) {
+	for (int i = 0; i < 10000; ++i) {
 
 		// clear network's memory
 		for (size_t j = 0; j < nn.layers.size(); ++j) {
@@ -32,40 +33,40 @@ int main() {
 			}
 		}
 
-		vector<Vec> data = XOR[i % 4];
-
-		for (size_t j = 0; j < data.size() - 1; ++j) {
-			nn.feedBackwards(data[j], data[j + 1]);
+		Vec pred = sequence[0];
+		for (size_t j = 0; j < sequence.size() - 1; ++j) {
+			pred = nn.feedBackwards(pred, sequence[j + 1]);
 		}
 
-		if (i % 5000 == 0) {
+		if (i % 1000 == 0) {
 			cout << i << " iterations\n";
 		}
 	}
 
-	// display results
-	for (size_t i = 0; i < XOR.size(); ++i) {
-		for (size_t j = 0; j < nn.layers.size(); ++j) {
-			if (auto layer = std::dynamic_pointer_cast<Recurrent>(nn.layers[j])) {
-				layer->clearMemory();
-			}
+	for (size_t j = 0; j < nn.layers.size(); ++j) {
+		if (auto layer = std::dynamic_pointer_cast<Recurrent>(nn.layers[j])) {
+			layer->clearMemory();
 		}
-
-		cout << "Sequence: ";
-
-		Vec pred;
-		for (size_t j = 0; j < XOR[i].size() - 1; ++j) {
-			pred = nn.feedForward(XOR[i][j]);
-
-			cout << XOR[i][j];
-
-			if (j != XOR[i].size() - 2) {
-				cout << ", ";
-			}
-		}
-
-		cout << ". Next prediction: " << pred[0] << "\n";
 	}
+
+	Line actualCos(olc::GREEN), predictedCos(olc::RED);
+	Vec pred;
+	size_t j = 0;
+
+	for (; j < sequence.size(); ++j) {
+		actualCos.addPoint(Point(-3.2 + 0.133 * j, sequence[j][0] * 2 - 1));
+		pred = nn.feedForward(sequence[j]);
+	}
+	for (; j < sequence.size() + 100; ++j) {
+		predictedCos.addPoint(Point(-3.2 + 0.133 * j, pred[0] * 2 - 1));
+		pred = nn.feedForward(pred);
+	}
+
+	graph.addLine(actualCos);
+	graph.addLine(predictedCos);
+
+
+	graph.waitFinish();
 
 	return 0;
 }
