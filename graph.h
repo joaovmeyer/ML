@@ -67,7 +67,7 @@ public:
 	int w, h, pixelW, pixelH;
 
 	vector<Point> points;
-	vector<Line> lines;
+	vector<std::shared_ptr<Line>> lines;
 	vector<Image> images;
 
 
@@ -97,14 +97,19 @@ public:
 
 		Point mousePos = pointToWorldSpace(Point(GetMouseX(), GetMouseY()));
 
+		bool zoomX = GetKey(olc::Key::X).bHeld, zoomY = GetKey(olc::Key::Y).bHeld;
 		float zoom = std::exp(GetMouseWheel() * -0.001);
 
 		// translate so mouse pos is at origin, than scale, than translate back
 		// this ensures that the point the mouse hoovers doesn't move when scaling
-		minX = mousePos.x + (minX - mousePos.x) * zoom;
-		maxX = mousePos.x + (maxX - mousePos.x) * zoom;
-		minY = mousePos.y + (minY - mousePos.y) * zoom;
-		maxY = mousePos.y + (maxY - mousePos.y) * zoom;
+		if (zoomX || !zoomY) {
+			minX = mousePos.x + (minX - mousePos.x) * zoom;
+			maxX = mousePos.x + (maxX - mousePos.x) * zoom;
+		}
+		if (zoomY || !zoomX) {
+			minY = mousePos.y + (minY - mousePos.y) * zoom;
+			maxY = mousePos.y + (maxY - mousePos.y) * zoom;
+		}
 
 		// move view
 		if (GetMouse(0).bPressed && !dragging) {
@@ -141,12 +146,15 @@ public:
 		return true;
 	}
 
-	void addLine(Line& line) {
+	void addLine(const std::shared_ptr<Line>& line) {
 		lines.push_back(line);
 	}
+	void addLine(const Line& line) {
+		lines.push_back(std::make_shared<Line>(line));
+	}
 
-	void drawLine(Line line) {
-		Line l = line;
+	void drawLine(const std::shared_ptr<Line>& line) {
+		Line l = *line;
 		for (size_t i = 0; i + 1 < l.points.size(); ++i) {
 			// transform to screen space
 			Point screenSpaceP1 = pointToScreenSpace(l.points[i]);
