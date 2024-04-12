@@ -238,34 +238,34 @@ struct PolynomialRegression {
 // functions to create the base of the polynomial regression
 
 vector<int> concat(vector<int> a, const vector<int>& b) {
-    
-    size_t n = a.size(), m = b.size();
-    
-    a.resize(n + m);
-    std::copy(b.begin(), b.end(), a.begin() + n);
-    
-    return a;
+	
+	size_t n = a.size(), m = b.size();
+	
+	a.resize(n + m);
+	std::copy(b.begin(), b.end(), a.begin() + n);
+	
+	return a;
 }
 
 vector<vector<int>> makeBase(vector<vector<int>> arrays, size_t idx = 0, int s = 0) {
-    if (idx >= arrays.size()) {
-        return vector<vector<int>>(1);
-    }
-    
-    vector<vector<int>> result;
-    
-    for (size_t i = 0; i < arrays[idx].size(); ++i) {
-        if (s + arrays[idx][i] > 2) continue;
-        
-        vector<int> item = { arrays[idx][i] };
-        vector<vector<int>> base = makeBase(arrays, idx + 1, s + arrays[idx][i]);
-        
-        for (size_t j = 0; j < base.size(); ++j) {
-            result.push_back(concat(item, base[j]));
-        }
-    }
-    
-    return result;
+	if (idx >= arrays.size()) {
+		return vector<vector<int>>(1);
+	}
+	
+	vector<vector<int>> result;
+	
+	for (size_t i = 0; i < arrays[idx].size(); ++i) {
+		if (s + arrays[idx][i] >= arrays[0].size()) continue;
+		
+		vector<int> item = { arrays[idx][i] };
+		vector<vector<int>> base = makeBase(arrays, idx + 1, s + arrays[idx][i]);
+		
+		for (size_t j = 0; j < base.size(); ++j) {
+			result.push_back(concat(item, base[j]));
+		}
+	}
+	
+	return result;
 }
 
 
