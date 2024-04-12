@@ -235,20 +235,71 @@ struct PolynomialRegression {
 
 
 
+// functions to create the base of the polynomial regression
+
+vector<int> concat(vector<int> a, const vector<int>& b) {
+    
+    size_t n = a.size(), m = b.size();
+    
+    a.resize(n + m);
+    std::copy(b.begin(), b.end(), a.begin() + n);
+    
+    return a;
+}
+
+vector<vector<int>> makeBase(vector<vector<int>> arrays, size_t idx = 0, int s = 0) {
+    if (idx >= arrays.size()) {
+        return vector<vector<int>>(1);
+    }
+    
+    vector<vector<int>> result;
+    
+    for (size_t i = 0; i < arrays[idx].size(); ++i) {
+        if (s + arrays[idx][i] > 2) continue;
+        
+        vector<int> item = { arrays[idx][i] };
+        vector<vector<int>> base = makeBase(arrays, idx + 1, s + arrays[idx][i]);
+        
+        for (size_t j = 0; j < base.size(); ++j) {
+            result.push_back(concat(item, base[j]));
+        }
+    }
+    
+    return result;
+}
 
 
 
+// example: make base to second degree polynomials P(x, y, z)
+
+// vector<vector<int>> a = { { 0, 1, 2 }, { 0, 1, 2 }, { 0, 1, 2 } };
+// vector<vector<int>> base = makeBase(a);
+
+// result: [[0, 0, 0], [0, 0, 1], [0, 0, 2], [0, 1, 0], [0, 1, 1], [0, 2, 0], [1, 0, 0], [1, 0, 1], [1, 1, 0], [2, 0, 0]]
+// these are the powers of each term, they should be multiplied together, so in this example, P(x, y, z) would look like this:
+// P(x, y,z) = a0 + a1 * z + a2 * z^2 + a3 * y + a4 * yz + a5 * y^2 + a6 * x + a7 * xz + a8 * xy + a9 * x^2
 
 
+// returns the number of elements in the base
+int baseSize(int m, int n) {
+	int max = std::max(m, n);
+	int min = m + n - max;
 
+	int numerator = 1;
+	int denominator = 1;
+	for (int i = 1; i <= min; ++i) {
+		numerator *= max + i;
+		denominator *= i;
+	}
 
+	return numerator / denominator;
+}
 
+// example: count number of elements in the base to second degree polynomials P(x, y, z)
 
+// baseSize(3, 2);
 
-
-
-
-
+// result: 10
 
 
 
