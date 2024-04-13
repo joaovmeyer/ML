@@ -301,7 +301,29 @@ int baseSize(int m, int n) {
 
 // result: 10
 
+double evaluateBaseAtPoint(vector<vector<int>> base, Vec point, Vec coefficients, int degree) {
+	double res = 0;
 
+	// powers[i][j] = j-th coordinate of the point to the i-th power
+	Mat powers = Mat::zeros(degree, point.size) + 1;
+	for (size_t i = 1; i < degree; ++i) {
+		for (size_t j = 0; j < point.size; ++j) {
+			powers[i][j] = powers[i - 1][j] * point[j];
+		}
+	}
+
+	for (size_t i = 0; i < base.size(); ++i) {
+		
+		double m = coefficients[i];
+		for (size_t j = 0; j < base[i].size(); ++j) {
+			m *= powers[base[i][j]][j];
+		}
+
+		res += m;
+	}
+
+	return res;
+}
 
 
 
