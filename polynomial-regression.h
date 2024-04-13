@@ -13,228 +13,6 @@ using namespace std;
 
 
 
-
-
-
-
-
-
-
-struct OrthogonalPolynomials {
-	vector<Vec> polynomials;
-	Vec inners;
-	vector<Vec> evaluations;
-
-	Mat x;
-
-	// current degree of polynomials and dimension of points
-	int n = 0;
-	size_t m;
-
-	OrthogonalPolynomials(const Mat& points) : x(points) {
-		m = x.col;
-	}
-
-	Vec getNextPolynomial() {
-		polynomials.resize(polynomials.size() + 1);
-		for (size_t i = 0; i < polynomials.size(); ++i) {
-			polynomials[i].resize((n + 1) * m);
-		}
-
-		evaluations.push_back(Vec::zeros(x.size));
-		for (size_t i = 0; i < x.size; ++i) {
-			evaluations[n][i] = evaluatePolynomial(polynomials[n], x[i]);
-		}
-
-		Vec projectionsSum = Vec::zeros((n + 1) * m);
-		for (int i = 0; i <= n; ++i) {
-			double s = polynomialInnerProduct(evaluations[n], evaluations[i]) / inners[i];
-
-			for (int j = 0; j < (n + 1) * m; ++j) {
-				projectionsSum[j] += polynomials[i][j] * s;
-			}
-		}
-
-		for (int j = 0; j < (n + 1) * m; ++j) {
-			polynomials[n][j] -= projectionsSum[j];
-		}
-
-		for (size_t i = 0; i < x.size; ++i) {
-			evaluations[n][i] = evaluatePolynomial(polynomials[n], x[i]);
-		}
-		inners[n] = polynomialInnerProduct(evaluations[n], evaluations[n]);
-
-		++n;
-	}
-};
-
-
-Mat getOrthogonalPolynomials(int n, const Vec& x) {
-
-	Mat polynomials(n, Vec(n));
-	Vec inners(n);
-	Mat evaluations(n, Vec(x.size()));
-
-	for (int i = 0; i < n; ++i) {
-		polynomials[i][i] = 1; // make a i degree polynomial
-
-		// evaluate our new polynomial in all the x points
-		for (size_t j = 0; j < x.size(); ++j) {
-			evaluations[i][j] = evaluatePolynomial(polynomials[i], x[j]);
-		}
-
-		// accumulate the projections
-		Vec projectionsSum = Vec(n);
-		for (int j = 0; j < i; ++j) {
-			double s = polynomialInnerProduct(evaluations[i], evaluations[j]) / inners[j];
-
-			for (int k = 0; k < n; ++k) {
-				projectionsSum[k] += polynomials[j][k] * s;
-			}
-		}
-
-		// make i-th polynomial orthogonal to the rest
-		for (int k = 0; k < n; ++k) {
-			polynomials[i][k] -= projectionsSum[k];
-		}
-
-		// store everything we will need in the future
-		for (size_t j = 0; j < x.size(); ++j) {
-			evaluations[i][j] = evaluatePolynomial(polynomials[i], x[j]);
-		}
-
-		inners[i] = polynomialInnerProduct(evaluations[i], evaluations[i]);
-	}
-
-	return polynomials;
-}
-
-
-
-
-
-
-
-using Vec = std::vector<double>;
-using Mat = std::vector<Vec>;
-
-std::ostream& operator << (std::ostream& os, const Vec& v) {
-	for (size_t i = 0; i < v.size(); ++i) {
-		os << v[i] << ", ";
-	}
-	os << "\n";
-
-	return os;
-}
-
-std::ostream& operator << (std::ostream& os, const Mat& m) {
-	for (size_t i = 0; i < m.size(); ++i) {
-		os << m[i];
-	}
-
-	return os;
-}
-
-
-// uses Horner's method for evaluating polynomials
-double evaluatePolynomial(const Vec& p, const Vec& x) {
-	size_t n = p.size() - 1; // degree of polynomial
-	size_t m = x.size();
-
-	double res = 0;
-
-	double b = p[n];
-	for (size_t i = n; i > 0; --i) {
-		b = p[i - 1] + b * x;
-	}
-
-	return b;
-}
-
-// without pre-evaluation
-double polynomialInnerProduct(const Vec& p1, const Vec& p2, const Vec& x) {
-	double res = 0;
-
-	for (size_t i = 0; i < x.size(); ++i) {
-		res += evaluatePolynomial(p1, x[i]) * evaluatePolynomial(p2, x[i]);
-	}
-
-	return res;
-}
-
-// with pre-evaluated polynomials
-double polynomialInnerProduct(const Vec& e1, const Vec& e2) {
-	double res = 0;
-
-	for (size_t i = 0; i < e1.size(); ++i) {
-		res += e1[i] * e2[i];
-	}
-
-	return res;
-}
-
-
-
-
-
-
-
-
-
-
-
-Vec leastSquares(const Vec& X, const Vec& Y, const Mat& polynomials) {
-	Vec m(polynomials.size());
-
-	for (size_t i = 0; i < polynomials.size(); ++i) {
-		double a = 0;
-		double b = 0;
-
-		for (size_t k = 0; k < X.size(); ++k) {
-			double g = evaluatePolynomial(polynomials[i], X[k]);
-
-			a += g * g;
-			b += Y[k] * g;
-		}
-
-		m[i] = b / a;
-	}
-
-	return m;
-}
-
-
-struct PolynomialRegression {
-	Vec polynomial;
-
-	void fit(const Vec& X, const Vec& Y, int degree = 1) {
-		Mat polynomials = getOrthogonalPolynomials(degree + 1, X);
-		Vec multipliers = leastSquares(X, Y, polynomials);
-
-		// combine all polynomials with it's weights into one (makes it easier to evaluate them)
-		polynomial.resize(degree + 1, 0);
-		for (size_t i = 0; i < polynomials.size(); ++i) {
-			for (size_t j = 0; j < polynomials[i].size(); ++j) {
-				polynomial[j] += polynomials[i][j] * multipliers[i];
-			}
-		}
-	}
-
-	double predict(double x) {
-		return evaluatePolynomial(polynomial, x);
-	}
-
-};
-
-
-
-
-
-
-
-
-
-
 // functions to create the base of the polynomial regression
 
 vector<int> concat(vector<int> a, const vector<int>& b) {
@@ -247,18 +25,20 @@ vector<int> concat(vector<int> a, const vector<int>& b) {
 	return a;
 }
 
-vector<vector<int>> makeBase(vector<vector<int>> arrays, size_t idx = 0, int s = 0) {
-	if (idx >= arrays.size()) {
+// n = degree of polynomial
+// m = number of variables
+vector<vector<int>> makeBase(int n, int m, size_t idx = 0, int s = 0) {
+	if (idx >= m) {
 		return vector<vector<int>>(1);
 	}
 	
 	vector<vector<int>> result;
 	
-	for (size_t i = 0; i < arrays[idx].size(); ++i) {
-		if (s + arrays[idx][i] >= arrays[0].size()) continue;
+	for (size_t i = 0; i <= n; ++i) {
+		if (s + i >= n + 1) continue;
 		
-		vector<int> item = { arrays[idx][i] };
-		vector<vector<int>> base = makeBase(arrays, idx + 1, s + arrays[idx][i]);
+		vector<int> item = { static_cast<int>(i) };
+		vector<vector<int>> base = makeBase(n, m, idx + 1, s + i);
 		
 		for (size_t j = 0; j < base.size(); ++j) {
 			result.push_back(concat(item, base[j]));
@@ -272,8 +52,7 @@ vector<vector<int>> makeBase(vector<vector<int>> arrays, size_t idx = 0, int s =
 
 // example: make base to second degree polynomials P(x, y, z)
 
-// vector<vector<int>> a = { { 0, 1, 2 }, { 0, 1, 2 }, { 0, 1, 2 } };
-// vector<vector<int>> base = makeBase(a);
+// vector<vector<int>> base = makeBase(2, 3);
 
 // result: [[0, 0, 0], [0, 0, 1], [0, 0, 2], [0, 1, 0], [0, 1, 1], [0, 2, 0], [1, 0, 0], [1, 0, 1], [1, 1, 0], [2, 0, 0]]
 // these are the powers of each term, they should be multiplied together, so in this example, P(x, y, z) would look like this:
@@ -281,7 +60,7 @@ vector<vector<int>> makeBase(vector<vector<int>> arrays, size_t idx = 0, int s =
 
 
 // returns the number of elements in the base
-int baseSize(int m, int n) {
+int baseSize(int n, int m) {
 	int max = std::max(m, n);
 	int min = m + n - max;
 
@@ -297,16 +76,17 @@ int baseSize(int m, int n) {
 
 // example: count number of elements in the base to second degree polynomials P(x, y, z)
 
-// baseSize(3, 2);
+// baseSize(2, 3);
 
 // result: 10
+
 
 double evaluateBaseAtPoint(vector<vector<int>> base, Vec point, Vec coefficients, int degree) {
 	double res = 0;
 
 	// powers[i][j] = j-th coordinate of the point to the i-th power
-	Mat powers = Mat::zeros(degree, point.size) + 1;
-	for (size_t i = 1; i < degree; ++i) {
+	vector<vector<double>> powers(degree + 1, vector<double>(point.size, 1));
+	for (size_t i = 1; i <= degree; ++i) {
 		for (size_t j = 0; j < point.size; ++j) {
 			powers[i][j] = powers[i - 1][j] * point[j];
 		}
@@ -330,10 +110,138 @@ double evaluateBaseAtPoint(vector<vector<int>> base, Vec point, Vec coefficients
 
 
 
+Vec LUDecomp(Mat& a) {
+	size_t n = a.row;
+
+	// we need to keep track of the permutations so we can later apply the same permutation to the vector b in Ax = b
+	Vec permutation = Vec::zeros(n);
+	for (size_t i = 0; i < n; ++i) {
+		permutation[i] = i;
+	}
+
+	for (size_t k = 0; k < n - 1; ++k) {
+
+		size_t pivotIndex = k;
+		for (size_t i = k + 1; i < n; ++i) {
+			if (std::abs(a[i][k]) > std::abs(a[pivotIndex][k])) {
+				pivotIndex = i;
+			}
+		}
+
+		if (std::abs(a[pivotIndex][k]) < 1e-10) {
+			cout << "matrix is singular.\n";
+			return Vec();
+		}
+
+		std::swap(permutation[k], permutation[pivotIndex]);
+		std::swap(a[k], a[pivotIndex]);
+
+		for (size_t i = k + 1; i < n; ++i) {
+			double m = a[i][k] / a[k][k];
+			a[i][k] = m;
+
+			for (size_t j = k + 1; j < n; ++j) {
+				a[i][j] -= m * a[k][j];
+			}
+		}
+	}
+
+	return permutation;
+}
+
+Vec solveLU(const Mat& a, const Vec& b, const Vec& permutation) {
+	size_t n = a.row;
+	Vec y = Vec::zeros(n), x = Vec::zeros(n);
+
+	// Ly = b
+	for (size_t i = 0; i < n; ++i) {
+
+		double sum = 0;
+		for (size_t j = 0; j < i; ++j) {
+			sum += a[i][j] * y[j];
+		}
+
+		y[i] = b[permutation[i]] - sum;
+	}
+
+	// Ux = y
+	for (int i = n - 1; i >= 0; --i) {
+
+		double sum = 0;
+		for (size_t j = i + 1; j < n; ++j) {
+			sum += a[i][j] * x[j];
+		}
+
+		x[i] = (y[i] - sum) / a[i][i];
+	}
+
+	return x;
+}
 
 
 
 
+
+
+
+struct polynomialRegression {
+	vector<vector<int>> base;
+	Vec coefficients;
+	int deg;
+
+	polynomialRegression(int variables, int degree) : deg(degree) {
+		base = makeBase(deg, variables);
+		coefficients = Vec::zeros(baseSize(deg, variables)) + 1;
+	}
+
+	void fit(const Dataset& dataset) {
+		size_t m = dataset.size, n = base.size();
+
+		Mat a(n, n);
+		Vec b = Vec::zeros(n);
+
+		Mat g(m, n);
+		for (size_t i = 0; i < m; ++i) {
+			for (size_t j = 0; j < n; ++j) {
+				g[i][j] = evaluateBaseAtPoint({ base[j] }, dataset[i].x, { 1 }, deg);
+			}
+		}
+
+		// least squares
+		for (size_t i = 0; i < n; ++i) {
+			for (size_t j = i; j < n; ++j) {
+				double sum = 0;
+
+				for (size_t k = 0; k < m; ++k) {
+					sum += g[k][i] * g[k][j];
+				}
+
+				a[i][j] = sum;
+				a[j][i] = sum;
+			}
+
+			double sum = 0;
+			for (size_t k = 0; k < m; ++k) {
+				sum += dataset[k].y[0] * g[k][i];
+			}
+
+			b[i] = sum;
+		}
+
+
+		Vec permutations = LUDecomp(a);
+		coefficients = solveLU(a, b, permutations);
+	}
+
+	double predict(const Vec& X) {
+		return evaluateBaseAtPoint(base, X, coefficients, deg);
+	}
+
+
+};
+
+
+/*
 
 struct polynomialRegression {
 	Mat W;
@@ -460,5 +368,5 @@ struct polynomialRegression {
 		return pred;
 	}
 };
-
+*/
 #endif
