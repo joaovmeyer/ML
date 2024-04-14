@@ -81,7 +81,7 @@ int baseSize(int n, int m) {
 // result: 10
 
 
-double evaluateBaseAtPoint(vector<vector<int>> base, Vec point, Vec coefficients, int degree) {
+double evaluateBaseAtPoint(const vector<vector<int>>& base, const Vec& point, const Vec& coefficients, int degree) {
 	double res = 0;
 
 	// powers[i][j] = j-th coordinate of the point to the i-th power
@@ -201,9 +201,24 @@ struct polynomialRegression {
 		Vec b = Vec::zeros(n);
 
 		Mat g(m, n);
+		vector<vector<double>> powers(deg + 1, vector<double>(dataset.dimX));
 		for (size_t i = 0; i < m; ++i) {
+
+			// anything (except 0) to the power of 0 is 1
+			std::fill(powers[0].begin(), powers[0].end(), 1);
+
+			for (size_t j = 1; j <= deg; ++j) {
+				for (size_t k = 0; k < dataset.dimX; ++k) {
+					powers[j][k] = powers[j - 1][k] * dataset[i].x[k];
+				}
+			}
+
 			for (size_t j = 0; j < n; ++j) {
-				g[i][j] = evaluateBaseAtPoint({ base[j] }, dataset[i].x, { 1 }, deg);
+
+				g[i][j] = 1;
+				for (size_t k = 0; k < base[j].size(); ++k) {
+					g[i][j] *= powers[base[j][k]][k];
+				}
 			}
 		}
 
