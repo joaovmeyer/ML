@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <cmath>
+#include <omp.h>
 
 #include "dataset.h"
 #include "vector.h"
@@ -201,8 +202,11 @@ struct polynomialRegression {
 		Vec b = Vec::zeros(n);
 
 		Mat g(m, n);
-		vector<vector<double>> powers(deg + 1, vector<double>(dataset.dimX));
+
+		#pragma omp parallel for
 		for (size_t i = 0; i < m; ++i) {
+			
+			vector<vector<double>> powers(deg + 1, vector<double>(dataset.dimX));
 
 			// anything (except 0) to the power of 0 is 1
 			std::fill(powers[0].begin(), powers[0].end(), 1);
@@ -223,10 +227,12 @@ struct polynomialRegression {
 		}
 
 		// least squares
+		#pragma omp parallel for
 		for (size_t i = 0; i < n; ++i) {
 			for (size_t j = i; j < n; ++j) {
 				double sum = 0;
 
+				#pragma omp simd reduction(+:sum)
 				for (size_t k = 0; k < m; ++k) {
 					sum += g[k][i] * g[k][j];
 				}
