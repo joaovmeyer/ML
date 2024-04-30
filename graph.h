@@ -94,6 +94,8 @@ public:
 		
 		Clear(olc::WHITE);
 
+		// enable alpha blending
+		SetPixelMode(olc::Pixel::ALPHA);
 
 		Point mousePos = pointToWorldSpace(Point(GetMouseX(), GetMouseY()));
 
