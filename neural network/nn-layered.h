@@ -59,11 +59,7 @@ struct Network {
 		for (int i = 0; i < epochs; ++i) {
 
 			// clear memory
-			for (size_t j = 0; j < layers.size(); ++j) {
-				if (auto layer = std::dynamic_pointer_cast<Recurrent>(layers[j])) {
-					layer->clearMemory();
-				}
-			}
+			clearRecMemory()
 
 			double cost = 0;
 
@@ -74,6 +70,16 @@ struct Network {
 
 			if ((i + 1) % (epochs / 10) == 0) {
 				cout << i + 1 << " iterations: " << cost << "\n";
+			}
+		}
+
+		clearRecMemory();
+	}
+
+	void clearRecMemory() {
+		for (size_t j = 0; j < layers.size(); ++j) {
+			if (auto layer = std::dynamic_pointer_cast<Recurrent>(layers[j])) {
+				layer->clearMemory();
 			}
 		}
 	}
