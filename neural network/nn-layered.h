@@ -54,6 +54,53 @@ struct Network {
 	}
 
 
+	void trainRec(const vector<Vec>& inputs, int epochs) {
+
+		for (int i = 0; i < epochs; ++i) {
+
+			// clear memory
+			for (size_t j = 0; j < layers.size(); ++j) {
+				if (auto layer = std::dynamic_pointer_cast<Recurrent>(layers[j])) {
+					layer->clearMemory();
+				}
+			}
+
+			double cost = 0;
+
+			// teacher forcing
+			for (size_t j = 0; j < inputs.size() - 1; ++j) {
+				cost += loss->function(inputs[j], feedBackwards(inputs[j], inputs[j + 1]));
+			}
+
+			if ((i + 1) % (epochs / 10) == 0) {
+				cout << i + 1 << " iterations: " << cost << "\n";
+			}
+		}
+	}
+
+	void fit(const Dataset& dataset, const Dataset& validation, int epochs, int epochsVerbose) {
+
+		for (int i = 0; i < epochs; ++i) {
+			double cost = 0;
+
+			for (size_t j = 0; j < dataset.size; ++j) {
+				cost += loss->function(feedBackwards(dataset[j].x, dataset[j].y), dataset[j].y);
+			}
+
+			if ((i + 1) % epochsVerbose == 0) {
+
+				double corrects = 0;
+				for (size_t j = 0; j < validation.size; ++j) {
+					corrects += Vec::argmax(feedForward(validation[j].x)) == Vec::argmax(validation[j].y);
+				}
+
+				cout << i + 1 << " epochs: " << cost << "\n";
+				cout << "Accuracy: " << (corrects / static_cast<double>(validation.size)) << "\n";
+			}
+		}
+	}
+
+
 };
 
 
