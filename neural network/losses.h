@@ -2,6 +2,7 @@
 #define LOSSES_H
 
 #include <memory>
+#include <cmath>
 
 #include "../vector.h"
 
@@ -18,14 +19,53 @@ struct Loss {
 };
 
 
+// mean squared error
 struct MSE : Loss {
 
 	double function(const Vec& pred, const Vec& y) override {
-		Vec::sum((pred - y) ^ 2) * 0.5;
+		return Vec::sum((pred - y) ^ 2) * 0.5;
 	}
 
-	Vec derivative(const Vec& pred, const Vec& y) {
+	Vec derivative(const Vec& pred, const Vec& y) override {
 		return pred - y;
+	}
+
+};
+
+// binary cross entropy
+struct BCE : Loss {
+
+	double function(const Vec& pred, const Vec& y) override {
+
+		double s = 0;
+		for (size_t i = 0; i < pred.size; ++i) {
+			s += y[i] * std::log(pred[i]) + (1.0 - y[i]) * std::log(1.0 - pred[i]);
+		}
+
+		return -1.0 / static_cast<double>(pred.size) * s;
+	}
+
+	Vec derivative(const Vec& pred, const Vec& y) override {
+		return (pred - y) / Vec::hadamard(pred, 1 - pred);
+	}
+
+};
+
+// categorical cross entropy
+struct CCE : Loss {
+
+	double function(const Vec& pred, const Vec& y) override {
+
+		double s = 0;
+		for (size_t i = 0; i < pred.size; ++i) {
+			s -= y[i] * std::log(pred[i]);
+		}
+
+		return s;
+	}
+
+	Vec derivative(const Vec& pred, const Vec& y) override {
+		return -y / pred;
 	}
 
 };
