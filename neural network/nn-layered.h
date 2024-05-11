@@ -65,7 +65,7 @@ struct Network {
 
 			// teacher forcing
 			for (size_t j = 0; j < inputs.size() - 1; ++j) {
-				cost += loss->function(inputs[j], feedBackwards(inputs[j], inputs[j + 1]));
+				cost += loss->function(inputs[j + 1], feedBackwards(inputs[j], inputs[j + 1]));
 			}
 
 			if ((i + 1) % (epochs / 10) == 0) {
