@@ -91,41 +91,17 @@ struct FullyConnected : Layer {
 	}
 
 	Vec backwards(const Vec& outputGrad) override {
-	//	Vec grad = Vec::hadamard(outputGrad, activation->derivative(z));
 		Vec grad = activation->multiplyJacobianVec(z, outputGrad);
-	//	Vec inputGrad = Mat::transpose(W) * outputGrad;
-
-
 
 		Vec inputGrad = Vec::zeros(input.size);
-		Vec ad_z = activation->derivative(z);
-
 		for (size_t i = 0; i < z.size; ++i) {
 			for (size_t l = 0; l < input.size; ++l) {
-				inputGrad[l] += ad_z[i] * W[i][l] * outputGrad[i];
+				inputGrad[l] += grad[i] * W[i][l];
 			}
 		}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	//	Vec inputGrad = multiplyMatTranspose(W, grad);
-
+		
 		optimizerW.step(Vec::outer(grad, input), W);
 		optimizerB.step(grad, B);
-
-	//	W -= Vec::outer(grad, input);
-	//	B -= grad;
 
 		return inputGrad;
 	}
