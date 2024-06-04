@@ -54,26 +54,70 @@ struct Network {
 	}
 
 
-	void trainRec(const vector<Vec>& inputs, int epochs) {
+	// descent the gradient for every parameter in the network
+	void step() {
+		for (size_t i = 0; i < layers.size(); ++i) {
+			layers[i]->step();
+		}
+	}
 
-		for (int i = 0; i < epochs; ++i) {
 
-			// clear memory
-			clearRecMemory()
 
-			double cost = 0;
 
-			// teacher forcing
-			for (size_t j = 0; j < inputs.size() - 1; ++j) {
-				cost += loss->function(inputs[j + 1], feedBackwards(inputs[j], inputs[j + 1]));
-			}
 
-			if ((i + 1) % (epochs / 10) == 0) {
-				cout << i + 1 << " iterations: " << cost << "\n";
+
+	vector<Vec> BBTT(const vector<Vec>& sequence, const vector<Vec>& desiredOutputs) {
+
+		size_t n = sequence.size();
+		vector<Vec> outputs(n);
+
+		for (size_t i = 0; i < n; ++i) {
+			outputs[i] = feedForward(sequence[i]);
+		}
+
+		for (size_t i = 1; i <= n; ++i) {
+			Vec outputGrad = loss->derivative(outputs[n - i], desiredOutputs[n - i]);
+
+			for (size_t j = layers.size(); j > 0; --j) {
+				outputGrad = layers[j - 1]->backwards(outputGrad);
 			}
 		}
 
-		clearRecMemory();
+		return outputs;
+	}
+
+
+	void trainRec(const vector<vector<Vec>>& sequences, int epochs) {
+
+		for (int iter = 0; iter < epochs; ++iter) {
+
+			double cost = 0.0;
+
+			for (size_t i = 0; i < sequences.size(); ++i) {
+
+				vector<Vec> sequence = sequences[i];
+				sequence.pop_back();
+
+				// this is silly but for now let's keep like that
+				vector<Vec> desiredOutputs = sequences[i];
+				desiredOutputs.erase(desiredOutputs.begin());
+
+				clearRecMemory();
+				vector<Vec> outputs = BBTT(sequence, desiredOutputs);
+				step();
+
+
+				if ((iter + 1) % (epochs / 10) == 0) {
+					for (size_t j = 0; j < outputs.size(); ++j) {
+						cost += loss->function(outputs[j], desiredOutputs[j]);
+					}
+				}
+			}
+
+			if ((iter + 1) % (int)(epochs * 0.1) == 0) {
+				cout << iter + 1 << " iterations: " << cost << "\n";
+			}
+		}
 	}
 
 	void clearRecMemory() {
