@@ -13,8 +13,6 @@
 
 using namespace std;
 
-#pragma GCC optimize("Ofast,unroll-loops")
-
 
 
 template <typename T>
@@ -58,13 +56,14 @@ Vec multiplyMatTranspose(const Mat& m, const Vec& v) {
 struct Layer {
     virtual Vec forward(const Vec& input) = 0;
     virtual Vec backwards(const Vec& outputGrad) = 0;
+    virtual void step() = 0;
 };
 
 
 struct FullyConnected : Layer {
 
-	Mat W; SGDMomentum<Mat> optimizerW;
-	Vec B; SGDMomentum<Vec> optimizerB;
+	Mat W; SGDMomentum<Mat> optimizerW; Mat gradW;
+	Vec B; SGDMomentum<Vec> optimizerB; Vec gradB;
 
 	std::shared_ptr<Activation> activation;
 
@@ -77,8 +76,8 @@ struct FullyConnected : Layer {
 
 		activation = std::make_shared<T>(activationFunction);
 
-		optimizerW = SGDMomentum<Mat>(W, 0.5);
-		optimizerB = SGDMomentum<Vec>(B, 0.5);
+		optimizerW = SGDMomentum<Mat>(W, 0.01); gradW = Mat::zeros(W.size);
+		optimizerB = SGDMomentum<Vec>(B, 0.01); gradB = Vec::zeros(B.size);
 	}
 
 
@@ -99,26 +98,33 @@ struct FullyConnected : Layer {
 				inputGrad[l] += grad[i] * W[i][l];
 			}
 		}
-		
-		optimizerW.step(Vec::outer(grad, input), W);
-		optimizerB.step(grad, B);
+
+		gradW += Vec::outer(grad, input);
+		gradB += grad;
 
 		return inputGrad;
+	}
+
+	void step() {
+		optimizerW.step(gradW, W);
+		optimizerB.step(gradB, B);
+
+		gradW = Mat::zeros(W.size);
+		gradB = Vec::zeros(B.size);
 	}
 };
 
 
 struct Recurrent : Layer {
 
-	Mat W; SGDMomentum<Mat> optimizerW;
-	Mat U; SGDMomentum<Mat> optimizerU;
-	Vec B; SGDMomentum<Vec> optimizerB;
+	Mat W; SGDMomentum<Mat> optimizerW; Mat gradW;
+	Mat U; SGDMomentum<Mat> optimizerU; Mat gradU;
+	Vec B; SGDMomentum<Vec> optimizerB; Vec gradB;
 
 	std::shared_ptr<Activation> activation;
 
-	Vec input, output, outputLast, z, zLast;
-	Vec dhdbLast;
-	Mat dhdwLast, dhduLast;
+	vector<Vec> inputs, outputs, zs;
+	Vec deltaLast;
 
 	template <typename T = Tanh>
 	Recurrent(int inputSize, int outputSize, const T& activationFunction = T()) {
@@ -126,81 +132,55 @@ struct Recurrent : Layer {
 		U = Mat::random(outputSize, outputSize, 0., std::sqrt(1. / (inputSize + outputSize)));
 		B = Vec::zeros(outputSize) + 0.1;
 
-		optimizerW = SGDMomentum<Mat>(W, 0.01);
-		optimizerU = SGDMomentum<Mat>(U, 0.01);
-		optimizerB = SGDMomentum<Vec>(B, 0.01);
+		optimizerW = SGDMomentum<Mat>(W, 0.001); gradW = Mat::zeros(W.size);
+		optimizerU = SGDMomentum<Mat>(U, 0.001); gradU = Mat::zeros(U.size);
+		optimizerB = SGDMomentum<Vec>(B, 0.001); gradB = Vec::zeros(B.size);
 
 		activation = std::make_shared<T>(activationFunction);
 
-		dhdbLast = Vec::zeros(outputSize);
-		dhdwLast = Mat::zeros(W.size);
-		dhduLast = Mat::zeros(U.size);
-
-		output = Vec::zeros(outputSize);
-		z = Vec::zeros(outputSize);
+		outputs.push_back(Vec::zeros(outputSize));
+		deltaLast = Vec::zeros(outputSize);
 	}
 
 
 	Vec forward(const Vec& inp) override {
-		// save layer's input, pre-activation value and output. Will use in backwards pass
-		input = inp;
-		zLast = z;
-		z = W * inp + U * output + B;
-		outputLast = output;
-		output = activation->function(z);
+		inputs.push_back(inp);
 
-		return output;
+		zs.push_back(W * inp + U * outputs.back() + B);
+		outputs.push_back(activation->function(zs.back()));
+
+		return outputs.back();
 	}
 
-	Vec backwards(const Vec& outputGrad) override {
+	Vec backwards(const Vec& outputGrad) {
+		Vec delta = deltaLast + outputGrad;
+		Vec grad = activation->multiplyJacobianVec(zs.back(), delta); zs.pop_back();
 
-	//	Vec grad = Vec::hadamard(outputGrad, activation->derivative(z));
-		Vec grad = activation->multiplyJacobianVec(z, outputGrad);
+		gradB += grad;
+		gradW += Vec::outer(grad, inputs.back()); inputs.pop_back();
+		gradU += Vec::outer(grad, outputs.back()); outputs.pop_back();
 
-		Vec inputGrad = multiplyMatTranspose(W, grad);
+		deltaLast = multiplyMatTranspose(U, grad);
 
-		return inputGrad;
+		return multiplyMatTranspose(W, grad);
+	}
 
-		Vec Uz = U * activation->derivative(zLast);
-
-
-		Vec gradB = Vec::zeros(B.size);
-		Mat gradW = Mat::zeros(W.size);
-		Mat gradU = Mat::zeros(U.size);
-
-		// update weights and biases
-		for (size_t i = 0; i < dhdwLast.row; ++i) {
-			dhdbLast[i] = (Uz[i] * dhdbLast[i] + 1) * 0.1;
-
-			gradB[i] += dhdbLast[i] * grad[i];
-
-
-			for (size_t j = 0; j < dhdwLast.col; ++j) {
-				dhdwLast[i][j] = (input[j] + Uz[i] * dhdwLast[i][j]) * 0.1;
-
-				gradW[i][j] += dhdwLast[i][j] * grad[i];
-			}
-
-			for (size_t j = 0; j < dhduLast.col; ++j) {
-				dhduLast[i][j] = (outputLast[j] + Uz[i] * dhduLast[i][j]) * 0.1;
-
-				gradU[i][j] += dhduLast[i][j] * grad[i];
-			}
-		}
-
-		optimizerB.step(gradB, B);
+	void step() {
 		optimizerW.step(gradW, W);
 		optimizerU.step(gradU, U);
+		optimizerB.step(gradB, B);
 
-		return inputGrad;
+		gradW = Mat::zeros(W.size);
+		gradU = Mat::zeros(U.size);
+		gradB = Vec::zeros(B.size);
 	}
 
 	void clearMemory() {
-		dhdbLast = Vec::zeros(B.size);
-		dhdwLast = Mat::zeros(W.size);
-		dhduLast = Mat::zeros(U.size);
+		inputs.resize(0);
+		outputs.resize(1, Vec::zeros(B.size));
+		zs.resize(0);
 
-		output = Vec::zeros(B.size);
+		deltaLast = Vec::zeros(B.size);
 	}
 };
 
