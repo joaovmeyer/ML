@@ -505,6 +505,12 @@ struct Vec {
 		Vec connection = v1 - v2;
 		return connection * connection;
 	}
+
+	void clip(double min, double max) {
+		for (size_t i = 0; i < size; ++i) {
+			data[i] = std::min(std::max(data[i], min), max);
+		}
+	}
 };
 
 
