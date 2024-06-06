@@ -424,6 +424,15 @@ struct Mat {
 
 		return ans;
 	}
+
+
+	void clip(double min, double max) {
+		for (size_t i = 0; i < row; ++i) {
+			for (size_t j = 0; j < col; ++j) {
+				mat[i][j] = std::min(std::max(mat[i][j], min), max);
+			}
+		}
+	}
 };
 
 std::ostream& operator << (std::ostream& os, const Mat& m) {
