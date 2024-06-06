@@ -153,6 +153,15 @@ struct Recurrent : Layer {
 	}
 
 	Vec backwards(const Vec& outputGrad) {
+
+		// delta last is really delta next but we are in reverse so who cares. It's used to optimize the code,
+		// because in BPTT we need to sum the gradients of each time step, but the last time step will depend 
+		// on the one before it that depends on the one before it and so on, and we end up calculating the
+		// first timestep's gradients n times, the second n - 1 times and so on, so instead of having something
+		// like dh_0/W * d0 + dh_0/W * d1 + dh_0/W * d2, we sum (d0 + d1 + d2) and multiply by dh_0/W, and do
+		// so every layer, gradually adding the extra d_i we will need for the next timestep (the last timestep
+		// is only multiplied by d_n, but the second to last is multiplied by (d_n + d_n-1), and so on...)
+
 		Vec delta = deltaLast + outputGrad;
 		Vec grad = activation->multiplyJacobianVec(zs.back(), delta); zs.pop_back();
 
@@ -166,9 +175,10 @@ struct Recurrent : Layer {
 	}
 
 	void step() {
-		optimizerW.step(gradW, W);
-		optimizerU.step(gradU, U);
-		optimizerB.step(gradB, B);
+		// clipping gradient diminishes the exploding gradient problem
+		gradW.clip(-2.0, 2.0); optimizerW.step(gradW, W);
+		gradU.clip(-2.0, 2.0); optimizerU.step(gradU, U);
+		gradB.clip(-2.0, 2.0); optimizerB.step(gradB, B);
 
 		gradW = Mat::zeros(W.size);
 		gradU = Mat::zeros(U.size);
