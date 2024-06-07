@@ -203,48 +203,36 @@ struct Recurrent : Layer {
 
 
 
-
-
 struct GRU : Layer {
 
-	int inputSize, outputSize;
+	Mat W_z; AdaGrad<Mat> optimizerW_z; Mat gradW_z;
+	Mat U_z; AdaGrad<Mat> optimizerU_z; Mat gradU_z;
+	Vec b_z; AdaGrad<Vec> optimizerB_z; Vec gradB_z;
+	vector<Vec> zs;
+	vector<Vec> a_zs;
 
-	Vec z;
-	Mat W_z; SGDMomentum<Mat> optimizerW_z;
-	Mat U_z; SGDMomentum<Mat> optimizerU_z;
-	Vec b_z; SGDMomentum<Vec> optimizerB_z;
-	Vec a_z;
+	Mat W_r; AdaGrad<Mat> optimizerW_r; Mat gradW_r;
+	Mat U_r; AdaGrad<Mat> optimizerU_r; Mat gradU_r;
+	Vec b_r; AdaGrad<Vec> optimizerB_r; Vec gradB_r;
+	vector<Vec> rs;
+	vector<Vec> a_rs;
 
-	Vec dhdb_z;
-	Mat dhdw_z;
-	Mat dhdu_z;
-
-	Vec r;
-	Mat W_r; SGDMomentum<Mat> optimizerW_r;
-	Mat U_r; SGDMomentum<Mat> optimizerU_r;
-	Vec b_r; SGDMomentum<Vec> optimizerB_r;
-	Vec a_r;
-
-	Vec dhdb_r;
-	Mat dhdw_r;
-	Mat dhdu_r;
-
-	Vec h_hat;
-	Mat W_h; SGDMomentum<Mat> optimizerW_h;
-	Mat U_h; SGDMomentum<Mat> optimizerU_h;
-	Vec b_h; SGDMomentum<Vec> optimizerB_h;
-	Vec a_h;
-
-	Vec dhdb_h;
-	Mat dhdw_h;
-	Mat dhdu_h;
+	Mat W_h; AdaGrad<Mat> optimizerW_h; Mat gradW_h;
+	Mat U_h; AdaGrad<Mat> optimizerU_h; Mat gradU_h;
+	Vec b_h; AdaGrad<Vec> optimizerB_h; Vec gradB_h;
+	vector<Vec> hs;
+	vector<Vec> a_hs;
 
 	std::shared_ptr<Activation> activation1;
 	std::shared_ptr<Activation> activation2;
 
-	Vec input, output, outputLast;
+	vector<Vec> inputs, outputs;
+	double n = 0.0;
+	Vec deltaLast;
 
-	GRU(int inputSize, int outputSize) : inputSize(inputSize), outputSize(outputSize) {
+	template <typename T = Tanh>
+	GRU(int inputSize, int outputSize, const T& activationFunction = T()) {
+
 
 		W_z = Mat::random(outputSize, inputSize, 0., std::sqrt(2. / inputSize));
 		U_z = Mat::random(outputSize, outputSize, 0., std::sqrt(2. / (inputSize + outputSize)));
@@ -258,225 +246,114 @@ struct GRU : Layer {
 		U_h = Mat::random(outputSize, outputSize, 0., std::sqrt(2. / (inputSize + outputSize)));
 		b_h = Vec::zeros(outputSize) + 0.1;
 
-		optimizerW_z = SGDMomentum<Mat>(W_z, 0.001);
-		optimizerU_z = SGDMomentum<Mat>(U_z, 0.001);
-		optimizerB_z = SGDMomentum<Vec>(b_z, 0.001);
 
-		optimizerW_r = SGDMomentum<Mat>(W_r, 0.001);
-		optimizerU_r = SGDMomentum<Mat>(U_r, 0.001);
-		optimizerB_r = SGDMomentum<Vec>(b_r, 0.001);
+		double lr = 0.1;
+		optimizerW_z = AdaGrad<Mat>(W_z, lr); gradB_z = Vec::zeros(b_z.size);
+		optimizerU_z = AdaGrad<Mat>(U_z, lr); gradW_z = Mat::zeros(W_z.size);
+		optimizerB_z = AdaGrad<Vec>(b_z, lr); gradU_z = Mat::zeros(U_z.size);
 
-		optimizerW_h = SGDMomentum<Mat>(W_h, 0.001);
-		optimizerU_h = SGDMomentum<Mat>(U_h, 0.001);
-		optimizerB_h = SGDMomentum<Vec>(b_h, 0.001);
+		optimizerW_r = AdaGrad<Mat>(W_r, lr); gradB_r = Vec::zeros(b_r.size);
+		optimizerU_r = AdaGrad<Mat>(U_r, lr); gradW_r = Mat::zeros(W_r.size);
+		optimizerB_r = AdaGrad<Vec>(b_r, lr); gradU_r = Mat::zeros(U_r.size);
 
-
-		activation1 = std::make_shared<Sigmoid>(Sigmoid());
-		activation2 = std::make_shared<Tanh>(Tanh());
+		optimizerW_h = AdaGrad<Mat>(W_h, lr); gradB_h = Vec::zeros(b_h.size);
+		optimizerU_h = AdaGrad<Mat>(U_h, lr); gradW_h = Mat::zeros(W_h.size);
+		optimizerB_h = AdaGrad<Vec>(b_h, lr); gradU_h = Mat::zeros(U_h.size);
 
 
-		dhdb_z = Vec::zeros(b_z.size);
-		dhdw_z = Mat::zeros(W_z.size);
-		dhdu_z = Mat::zeros(U_z.size);
+		activation1 = std::make_shared<Sigmoid>();
+		activation2 = std::make_shared<T>(activationFunction);
 
-
-		dhdb_r = Vec::zeros(b_r.size);
-		dhdw_r = Mat::zeros(W_r.size);
-		dhdu_r = Mat::zeros(U_r.size);
-
-
-		dhdb_h = Vec::zeros(b_h.size);
-		dhdw_h = Mat::zeros(W_h.size);
-		dhdu_h = Mat::zeros(U_h.size);
-
-		output = Vec::zeros(outputSize);
+		outputs.push_back(Vec::zeros(outputSize));
+		deltaLast = Vec::zeros(outputSize);
 	}
+
 
 
 	Vec forward(const Vec& inp) override {
-		input = inp;
+		inputs.push_back(inp);
 
-		a_z = W_z * input + U_z * output + b_z;
-		z = activation1->function(a_z);
+		a_zs.push_back(W_z * inp + U_z * outputs.back() + b_z);
+		zs.push_back(activation1->function(a_zs.back()));
 
-		a_r = W_r * input + U_r * output + b_r;
-		r = Vec::hadamard(activation1->function(a_r), output);
+		a_rs.push_back(W_r * inp + U_r * outputs.back() + b_r);
+		rs.push_back(activation1->function(a_rs.back()));
 
-		a_h = W_h * input + U_h * r + b_h;
-		h_hat = activation2->function(a_h);
+		a_hs.push_back(W_h * inp + U_h * Vec::hadamard(outputs.back(), rs.back()) + b_h);
+		hs.push_back(activation2->function(a_hs.back()));
 
-		// h_(t-1)
-		outputLast = output;
+		outputs.push_back(Vec::hadamard(1.0 - zs.back(), outputs.back()) + Vec::hadamard(zs.back(), hs.back()));
 
-		// h_t
-		output = Vec::hadamard(1.0 - z, output) + Vec::hadamard(z, h_hat);
-
-		return output;
+		return outputs.back();
 	}
 
-	Vec backwards(const Vec& outputGrad) override {
+	Vec backwards(const Vec& outputGrad) {
 
-		// activation derivatives
-		Vec ad_z = activation1->derivative(a_z);
-		Vec ad_r = activation1->derivative(a_r);
-		Vec ad_h = activation2->derivative(a_h);
+		Vec delta = deltaLast + outputGrad;
 
-		Vec af_r = activation1->function(a_r);
+		Vec a = Vec::hadamard(delta, hs.back());
+		Vec b = Vec::hadamard(delta, zs.back());
+		Vec c = Vec::hadamard(delta, outputs.back());
+		Vec d = Vec::hadamard(a - c, activation1->derivative(a_zs.back()));
 
+		gradB_z += d;
+		gradW_z += Vec::outer(d, inputs.back());
+		gradU_z += Vec::outer(d, outputs.back());
 
-		// calculate input gradient
-		Vec dhdx = Vec::zeros(input.size);
+		Vec e = delta - b; // Vec::hadamard(delta, (1.0 - zs.back()));
+		Vec f = Vec::hadamard(b, activation2->derivative(a_hs.back()));
 
-		for (size_t i = 0; i < output.size; ++i) {
-			for (size_t l = 0; l < input.size; ++l) {
+		gradB_h += f;
+		gradW_h += Vec::outer(f, inputs.back());
+		gradU_h += Vec::outer(f, Vec::hadamard(outputs.back(), rs.back()));
 
-				double sum = W_h[i][l];
-				for (size_t j = 0; j < output.size; ++j) {
-					sum += U_h[i][j] * ad_r[j] * W_r[j][l];
-				}
+		Vec g = multiplyMatTranspose(U_h, f);
+		Vec h = Vec::hadamard(g, rs.back());
+		Vec i = Vec::hadamard(g, outputs.back());
+		Vec k = Vec::hadamard(i, activation1->derivative(a_rs.back()));
 
-				dhdx[l] = (z[i] * ad_h[i] * sum + (h_hat[i] - outputLast[i]) * ad_z[i] * W_z[i][l]) * outputGrad[i];
-			}
-		}
-
-
-		Vec rowsU_z = U_z * (Vec::zeros(U_z.col) + 1);
-		Vec rowsU_r = U_r * (Vec::zeros(U_r.col) + 1);
-		Vec rowsU_h = U_h * (Vec::zeros(U_h.col) + 1);
-
-		Vec gradB_z = Vec::zeros(b_z.size);
-		Mat gradW_z = Mat::zeros(W_z.size);
-		Mat gradU_z = Mat::zeros(U_z.size);
-
-		Vec gradB_r = Vec::zeros(b_r.size);
-		Mat gradW_r = Mat::zeros(W_r.size);
-		Mat gradU_r = Mat::zeros(U_r.size);
-
-		Vec gradB_h = Vec::zeros(b_h.size);
-		Mat gradW_h = Mat::zeros(W_h.size);
-		Mat gradU_h = Mat::zeros(U_h.size);
+		gradB_r += k;
+		gradW_r += Vec::outer(k, inputs.back());
+		gradU_r += Vec::outer(k, outputs.back());
 
 
-		for (size_t i = 0; i < outputSize; ++i) {
+		deltaLast = multiplyMatTranspose(U_z, d) + multiplyMatTranspose(U_r, k) + h + e;
 
-			double haha = ad_h[i] * rowsU_h[i] * (af_r[i] * dhdb_z[i] + outputLast[i] * ad_r[i] * rowsU_r[i] * dhdb_z[i]);
+		inputs.pop_back();
+		a_zs.pop_back(); zs.pop_back();
+		a_rs.pop_back(); rs.pop_back();
+		a_hs.pop_back(); hs.pop_back();
+		outputs.pop_back();
+		++n;
 
-			dhdb_z[i] = dhdb_z[i] * (1.0 - z[i]) + ad_z[i] * (1.0 + rowsU_z[i] * dhdb_z[i]) * (h_hat[i] - outputLast[i]) + z[i] * haha;
-			gradB_z[i] = outputGrad[i] * dhdb_z[i];/* b_z[i] -= gradB_z[i] * 0.5;*/
+		return multiplyMatTranspose(W_z, d) + multiplyMatTranspose(W_r, k) + multiplyMatTranspose(W_h, f);
+	}
 
+	void step() {
+		optimizerW_z.step(gradW_z, W_z, n); gradW_z = Mat::zeros(W_z.size);
+		optimizerU_z.step(gradU_z, U_z, n); gradU_z = Mat::zeros(U_z.size);
+		optimizerB_z.step(gradB_z, b_z, n); gradB_z = Vec::zeros(b_z.size);
 
-			for (size_t j = 0; j < inputSize; ++j) {
+		optimizerW_r.step(gradW_r, W_r, n); gradW_r = Mat::zeros(W_r.size);
+		optimizerU_r.step(gradU_r, U_r, n); gradU_r = Mat::zeros(U_r.size);
+		optimizerB_r.step(gradB_r, b_r, n); gradB_r = Vec::zeros(b_r.size);
 
-				haha = ad_h[i] * rowsU_h[i] * (af_r[i] * dhdw_z[i][j] + outputLast[i] * ad_r[i] * rowsU_r[i] * dhdw_z[i][j]);
-				
-				dhdw_z[i][j] = dhdw_z[i][j] * (1.0 - z[i]) + (ad_z[i] * (input[j] + rowsU_z[i] * dhdw_z[i][j])) * (h_hat[i] - outputLast[i]) + z[i] * haha;
-				gradW_z[i][j] = dhdw_z[i][j] * outputGrad[i];/* W_z[i][j] -= gradW_z[i][j] * 0.5;*/
-			}
-
-			for (size_t j = 0; j < outputSize; ++j) {
-
-				haha = ad_h[i] * rowsU_h[i] * (af_r[i] * dhdu_z[i][j] + outputLast[i] * ad_r[i] * rowsU_r[i] * dhdu_z[i][j]);
-				
-				dhdu_z[i][j] = dhdu_z[i][j] * (1.0 - z[i]) + (ad_z[i] * (outputLast[j] + rowsU_z[i] * dhdu_z[i][j])) * (h_hat[i] - outputLast[i]) + z[i] * haha;
-				gradU_z[i][j] = dhdu_z[i][j] * outputGrad[i];/* U_z[i][j] -= gradU_z[i][j] * 0.5;*/
-			}
-		}
-
-
-		for (size_t i = 0; i < outputSize; ++i) {
-
-			double haha = ad_h[i] * rowsU_h[i] * (af_r[i] * dhdb_r[i] + outputLast[i] * ad_r[i] * (1.0 + rowsU_r[i] * dhdb_r[i]));
-
-			dhdb_r[i] = dhdb_r[i] * (1.0 - z[i]) + ad_z[i] * rowsU_z[i] * dhdb_r[i] * (h_hat[i] - outputLast[i]) + z[i] * haha;
-			gradB_r[i] = outputGrad[i] * dhdb_r[i];/* b_r[i] -= gradB_r[i] * 0.5;*/
-
-			for (size_t j = 0; j < inputSize; ++j) {
-
-				haha = ad_h[i] * rowsU_h[i] * (af_r[i] * dhdw_r[i][j] + outputLast[i] * ad_r[i] * (input[j] + rowsU_r[i] * dhdw_r[i][j]));
-
-				dhdw_r[i][j] = dhdw_r[i][j] * (1.0 - z[i]) + ad_z[i] * rowsU_z[i] * dhdw_r[i][j] * (h_hat[i] - outputLast[i]) + z[i] * haha;
-				gradW_r[i][j] = dhdw_r[i][j] * outputGrad[i];/* W_r[i][j] -= gradW_r[i][j] * 0.5;*/
-			}
-
-			for (size_t j = 0; j < outputSize; ++j) {
-
-				haha = ad_h[i] * rowsU_h[i] * (af_r[i] * dhdu_r[i][j] + outputLast[i] * ad_r[i] * (outputLast[j] + rowsU_r[i] * dhdu_r[i][j]));
-
-				dhdu_r[i][j] = dhdu_r[i][j] * (1.0 - z[i]) + ad_z[i] * rowsU_z[i] * dhdu_r[i][j] * (h_hat[i] - outputLast[i]) + z[i] * haha;
-				gradU_r[i][j] = dhdu_r[i][j] * outputGrad[i];/* U_r[i][j] -= gradU_r[i][j] * 0.5;*/
-			}
-		}
-
-
-		for (size_t i = 0; i < outputSize; ++i) {
-
-			double haha = ad_h[i] * (1.0 + rowsU_h[i] * (af_r[i] * dhdb_h[i] + outputLast[i] * ad_r[i] * rowsU_r[i] * dhdb_h[i]));
-
-			dhdb_h[i] = dhdb_h[i] * (1.0 - z[i]) + (ad_z[i] * rowsU_z[i] * dhdb_h[i]) * (h_hat[i] - outputLast[i]) + z[i] * haha;
-			gradB_h[i] = outputGrad[i] * dhdb_h[i];/* b_h[i] -= gradB_h[i] * 0.5;*/
-
-			for (size_t j = 0; j < inputSize; ++j) {
-
-				haha = ad_h[i] * (input[j] + rowsU_h[i] * (af_r[i] * dhdw_h[i][j] + outputLast[i] * ad_r[i] * rowsU_r[i] * dhdw_h[i][j]));
-
-				dhdw_h[i][j] = dhdw_h[i][j] * (1.0 - z[i]) + (ad_z[i] * rowsU_z[i] * dhdw_h[i][j]) * (h_hat[i] - outputLast[i]) + z[i] * haha;
-				gradW_h[i][j] = dhdw_h[i][j] * outputGrad[i];/* W_h[i][j] -= gradW_h[i][j] * 0.01;*/
-			}
-
-			for (size_t j = 0; j < outputSize; ++j) {
-
-				haha = ad_h[i] * (outputLast[j] + rowsU_h[i] * (af_r[i] * dhdu_h[i][j] + outputLast[i] * ad_r[i] * rowsU_r[i] * dhdu_h[i][j]));
-
-				dhdu_h[i][j] = dhdu_h[i][j] * (1.0 - z[i]) + (ad_z[i] * rowsU_z[i] * dhdu_h[i][j]) * (h_hat[i] - outputLast[i]) + z[i] * haha;
-				gradU_h[i][j] = dhdu_h[i][j] * outputGrad[i];/* U_h[i][j] -= gradU_h[i][j] * 0.01;*/
-			}
-		}
-
-
-		optimizerB_z.step(gradB_z, b_z);
-		optimizerW_z.step(gradW_z, W_z);
-		optimizerU_z.step(gradU_z, U_z);
-
-		optimizerB_r.step(gradB_r, b_r);
-		optimizerW_r.step(gradW_r, W_r);
-		optimizerU_r.step(gradU_r, U_r);
-
-		optimizerB_h.step(gradB_h, b_h);
-		optimizerW_h.step(gradW_h, W_h);
-		optimizerU_h.step(gradU_h, U_h);
-
-
-
-		return dhdx;
+		optimizerW_h.step(gradW_h, W_h, n); gradW_h = Mat::zeros(W_h.size);
+		optimizerU_h.step(gradU_h, U_h, n); gradU_h = Mat::zeros(U_h.size);
+		optimizerB_h.step(gradB_h, b_h, n); gradB_h = Vec::zeros(b_h.size);
 	}
 
 	void clearMemory() {
+		inputs.resize(0);
+		a_zs.resize(0); zs.resize(0);
+		a_rs.resize(0); rs.resize(0);
+		a_hs.resize(0); hs.resize(0);
+		outputs.resize(1, Vec::zeros(b_z.size));
+		n = 0.0;
 
-		dhdb_z = Vec::zeros(b_z.size);
-		dhdw_z = Mat::zeros(W_z.size);
-		dhdu_z = Mat::zeros(U_z.size);
-
-		dhdb_r = Vec::zeros(b_r.size);
-		dhdw_r = Mat::zeros(W_r.size);
-		dhdu_r = Mat::zeros(U_r.size);
-
-		dhdb_h = Vec::zeros(b_h.size);
-		dhdw_h = Mat::zeros(W_h.size);
-		dhdu_h = Mat::zeros(U_h.size);
-
-		output = Vec::zeros(outputSize);
+		deltaLast = Vec::zeros(b_z.size);
 	}
 };
-
-
-
-
-
-
-
-
-
-
 
 
 
