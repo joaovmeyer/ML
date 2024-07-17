@@ -9,6 +9,7 @@
 #include <iostream>
 #include <string>
 #include <cmath>
+#include <functional>
 
 using namespace std;
 
@@ -339,7 +340,7 @@ private:
 
 	double yaw, pitch;
 	double nearPlane;
-	Point3D cameraPos;
+	double cameraDst;
 
 public:
 
@@ -360,7 +361,7 @@ public:
 		pitch = 0.0;
 		nearPlane = 0.001;
 
-		cameraPos = Point3D(0, 0, 0);
+		cameraDst = -5.0;
 
 		// start the graph in another thread so the rest of the code doesn't stop
 		graphThread = std::thread([=]() {
@@ -393,7 +394,7 @@ public:
 
 
 		// move camera
-		cameraPos.z = std::min(cameraPos.z - std::exp(GetMouseWheel() * -0.001) + 1.0, 0.0);
+		cameraDst = std::min(cameraDst - std::exp(GetMouseWheel() * -0.001) + 1.0, 0.0);
 
 
 		if (dragging) {
@@ -415,7 +416,75 @@ public:
 			drawPoint(points[i]);
 		}
 
+		teste();
+
 		return true;
+	}
+
+
+	// plotting a function. I'll need triangle clipping and other stuff for this to be usable
+	void teste() {
+
+		if (!GetKey(olc::Key::D).bHeld) return;
+
+		std::function<double(double, double)> f = [](double x, double z) {
+			return std::sin(x) * std::cos(z);
+		};
+
+		vector<vector<Point3D>> heightMap;
+
+		double step = 0.5;
+
+		double maxValue = -99999;
+		double minValue = 99999;
+
+		for (double x = -2.0; x < 2.0; x += step) {
+
+			vector<Point3D> v;
+
+			for (double z = -2.0; z < 2.0; z += step) {
+				double y = f(x, z);
+
+				maxValue = std::max(maxValue, y);
+				minValue = std::min(minValue, y);
+
+				v.push_back(Point3D(x, y, z));
+			}
+
+			heightMap.push_back(v);
+		}
+
+		olc::Pixel colorHigh = olc::RED;
+		olc::Pixel colorLow = olc::BLUE;
+
+		for (size_t i = 0; i < heightMap.size() - 1; ++i) {
+			for (size_t j = 0; j < heightMap[0].size() - 1; ++j) {
+
+				Point screenP1 = pointToScreenSpace(pointToCameraSpace(heightMap[i][j]));
+				Point screenP2 = pointToScreenSpace(pointToCameraSpace(heightMap[i + 1][j]));
+				Point screenP3 = pointToScreenSpace(pointToCameraSpace(heightMap[i + 1][j + 1]));
+				Point screenP4 = pointToScreenSpace(pointToCameraSpace(heightMap[i][j + 1]));
+
+				olc::vf2d p1(screenP1.x, screenP1.y);
+				olc::vf2d p2(screenP2.x, screenP2.y);
+				olc::vf2d p3(screenP3.x, screenP3.y);
+				olc::vf2d p4(screenP4.x, screenP4.y);
+
+				olc::Pixel col1 = PixelLerp(colorLow, colorHigh, (heightMap[i][j].y - minValue) / (maxValue - minValue));
+				olc::Pixel col2 = PixelLerp(colorLow, colorHigh, (heightMap[i + 1][j].y - minValue) / (maxValue - minValue));
+				olc::Pixel col3 = PixelLerp(colorLow, colorHigh, (heightMap[i + 1][j + 1].y - minValue) / (maxValue - minValue));
+				olc::Pixel col4 = PixelLerp(colorLow, colorHigh, (heightMap[i][j + 1].y - minValue) / (maxValue - minValue));
+
+				olc::vf2d z(0, 0);
+
+				FillTexturedTriangle({ p1, p2, p3 }, { z, z, z }, { col1, col2, col3 }, nullptr);
+				FillTexturedTriangle({ p1, p4, p3 }, { z, z, z }, { col1, col4, col3 }, nullptr);
+
+				DrawTriangle(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, olc::VERY_DARK_GREY);
+				DrawTriangle(p1.x, p1.y, p4.x, p4.y, p3.x, p3.y, olc::VERY_DARK_GREY);
+			}
+		}
+
 	}
 
 
@@ -478,7 +547,7 @@ public:
 		points.push_back(p);
 	}
 
-	void drawPoint(Point3D& p) {
+	void drawPoint(const Point3D& p) {
 		Point3D cameraSpace = pointToCameraSpace(p);
 
 		// behind near plane
@@ -491,7 +560,7 @@ public:
 
 	void drawAxis() {
 
-		if (!cameraPos.z) return;
+		if (!cameraDst) return;
 
 		Point3D origin(0.0, 0.0, 0.0);
 
@@ -563,11 +632,8 @@ public:
 		double rot2Y = p.y * cos1 - rot1Z * sin1;
 		double rot2Z = p.y * sin1 + rot1Z * cos1;
 
-		// update it's coordinates after doing all the rotations
-		p.x = rot1X; p.y = rot2Y; p.z = rot2Z;
-
-		// perform translation
-		p -= cameraPos;
+		// update it's coordinates after doing all the rotations (and perform translation)
+		p.x = rot1X; p.y = rot2Y; p.z = rot2Z - cameraDst;
 
 		return p;
 	}
