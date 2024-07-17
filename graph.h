@@ -11,18 +11,13 @@
 #include <cmath>
 #include <functional>
 
+#include "triangleClipping.h"
+
 using namespace std;
 
 
 
-struct Point {
-	double x, y, r;
-	olc::Pixel color;
 
-	Point(double x = 0, double y = 0, double radius = 2, const olc::Pixel color = olc::BLACK) : x(x), y(y), r(radius), color(color) {
-		
-	}
-};
 
 struct Line {
 	vector<Point> points;
@@ -33,6 +28,19 @@ struct Line {
 	}
 
 	void addPoint(const Point& p) {
+		points.push_back(p);
+	}
+};
+
+struct Line3D {
+	std::vector<Point3D> points;
+	olc::Pixel color;
+
+	Line3D(olc::Pixel color = olc::BLACK) : color(color) {
+
+	}
+
+	void addPoint(const Point3D& p) {
 		points.push_back(p);
 	}
 };
@@ -295,35 +303,8 @@ public:
 
 
 
-struct Point3D {
-	double x, y, z, r;
-	olc::Pixel color;
 
-	Point3D(double x = 0, double y = 0, double z = 0, double radius = 2, const olc::Pixel color = olc::BLACK) : x(x), y(y), z(z), r(radius), color(color) {
-		
-	}
-};
 
-Point3D operator -= (Point3D& p1, const Point3D& p2) {
-	p1.x -= p2.x;
-	p1.y -= p2.y;
-	p1.z -= p2.z;
-
-	return p1;
-}
-
-struct Line3D {
-	vector<Point3D> points;
-	olc::Pixel color;
-
-	Line3D(olc::Pixel color = olc::BLACK) : color(color) {
-
-	}
-
-	void addPoint(const Point3D& p) {
-		points.push_back(p);
-	}
-};
 
 
 
@@ -361,7 +342,7 @@ public:
 		pitch = 0.0;
 		nearPlane = 0.001;
 
-		cameraDst = -5.0;
+		cameraDst = -2.0;
 
 		// start the graph in another thread so the rest of the code doesn't stop
 		graphThread = std::thread([=]() {
@@ -422,13 +403,11 @@ public:
 	}
 
 
-	// plotting a function. I'll need triangle clipping and other stuff for this to be usable
+	// plotting a function. Still need to figure out depthbuffer and a basic occlusion culling
 	void teste() {
 
-		if (!GetKey(olc::Key::D).bHeld) return;
-
 		std::function<double(double, double)> f = [](double x, double z) {
-			return std::sin(x) * std::cos(z);
+			return std::sin(x) + std::sin(z);
 		};
 
 		vector<vector<Point3D>> heightMap;
@@ -438,11 +417,11 @@ public:
 		double maxValue = -99999;
 		double minValue = 99999;
 
-		for (double x = -2.0; x < 2.0; x += step) {
+		for (double x = -5.0; x < 5.0; x += step) {
 
 			vector<Point3D> v;
 
-			for (double z = -2.0; z < 2.0; z += step) {
+			for (double z = -5.0; z < 5.0; z += step) {
 				double y = f(x, z);
 
 				maxValue = std::max(maxValue, y);
@@ -460,28 +439,37 @@ public:
 		for (size_t i = 0; i < heightMap.size() - 1; ++i) {
 			for (size_t j = 0; j < heightMap[0].size() - 1; ++j) {
 
-				Point screenP1 = pointToScreenSpace(pointToCameraSpace(heightMap[i][j]));
-				Point screenP2 = pointToScreenSpace(pointToCameraSpace(heightMap[i + 1][j]));
-				Point screenP3 = pointToScreenSpace(pointToCameraSpace(heightMap[i + 1][j + 1]));
-				Point screenP4 = pointToScreenSpace(pointToCameraSpace(heightMap[i][j + 1]));
+				Point3D p1 = pointToCameraSpace(heightMap[i][j]);
+				Point3D p2 = pointToCameraSpace(heightMap[i + 1][j]);
+				Point3D p3 = pointToCameraSpace(heightMap[i + 1][j + 1]);
+				Point3D p4 = pointToCameraSpace(heightMap[i][j + 1]);
 
-				olc::vf2d p1(screenP1.x, screenP1.y);
-				olc::vf2d p2(screenP2.x, screenP2.y);
-				olc::vf2d p3(screenP3.x, screenP3.y);
-				olc::vf2d p4(screenP4.x, screenP4.y);
-
-				olc::Pixel col1 = PixelLerp(colorLow, colorHigh, (heightMap[i][j].y - minValue) / (maxValue - minValue));
-				olc::Pixel col2 = PixelLerp(colorLow, colorHigh, (heightMap[i + 1][j].y - minValue) / (maxValue - minValue));
-				olc::Pixel col3 = PixelLerp(colorLow, colorHigh, (heightMap[i + 1][j + 1].y - minValue) / (maxValue - minValue));
-				olc::Pixel col4 = PixelLerp(colorLow, colorHigh, (heightMap[i][j + 1].y - minValue) / (maxValue - minValue));
+				p1.color = PixelLerp(colorLow, colorHigh, (heightMap[i][j].y - minValue) / (maxValue - minValue));
+				p2.color = PixelLerp(colorLow, colorHigh, (heightMap[i + 1][j].y - minValue) / (maxValue - minValue));
+				p3.color = PixelLerp(colorLow, colorHigh, (heightMap[i + 1][j + 1].y - minValue) / (maxValue - minValue));
+				p4.color = PixelLerp(colorLow, colorHigh, (heightMap[i][j + 1].y - minValue) / (maxValue - minValue));
 
 				olc::vf2d z(0, 0);
 
-				FillTexturedTriangle({ p1, p2, p3 }, { z, z, z }, { col1, col2, col3 }, nullptr);
-				FillTexturedTriangle({ p1, p4, p3 }, { z, z, z }, { col1, col4, col3 }, nullptr);
+			//	vector<vector<Point3D>> tris = clipToNearPlane({ { p1, p2, p3 }, { p1, p4, p3 } }, nearPlane);
+				vector<vector<Point3D>> tris = { { p1, p2, p3 }, { p1, p4, p3 } };
 
-				DrawTriangle(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, olc::VERY_DARK_GREY);
-				DrawTriangle(p1.x, p1.y, p4.x, p4.y, p3.x, p3.y, olc::VERY_DARK_GREY);
+				for (size_t i = 0; i < tris.size(); ++i) {
+					Point screenSpace1 = pointToScreenSpace(tris[i][0]);
+					Point screenSpace2 = pointToScreenSpace(tris[i][1]);
+					Point screenSpace3 = pointToScreenSpace(tris[i][2]);
+
+					vector<vector<Point>> newTris = clipTriangle({ screenSpace1, screenSpace2, screenSpace3 }, w, h);
+
+					for (size_t j = 0; j < newTris.size(); ++j) {
+
+						olc::vf2d newTriP1(newTris[j][0].x, newTris[j][0].y);
+						olc::vf2d newTriP2(newTris[j][1].x, newTris[j][1].y);
+						olc::vf2d newTriP3(newTris[j][2].x, newTris[j][2].y);
+
+						FillTexturedTriangle({ newTriP1, newTriP2, newTriP3 }, { z, z, z }, { newTris[j][0].color, newTris[j][1].color, newTris[j][2].color }, nullptr);
+					}
+				}
 			}
 		}
 
@@ -587,10 +575,16 @@ public:
 	Point pointToScreenSpace(const Point3D& p) {
 		// we need to map X coordinate from [minX, maxX] to [0, w] (and similar with Y)
 
+		double FOV = 3.141592653 / 4.0;
+
+	//	double perspectiveDiv = 1.0 / (p.z * std::tan(FOV * 0.5));
+		double perspectiveDiv = -1.0 / cameraDst; // orthogonal perspective
+
 		Point screenSpace;
-		screenSpace.x = (p.x / p.z - minX) * (w / (maxX - minX));
-		screenSpace.y = h - (p.y / p.z - minY) * (h / (maxY - minY));
+		screenSpace.x = (p.x * perspectiveDiv - minX) * (w / (maxX - minX));
+		screenSpace.y = h - (p.y * perspectiveDiv - minY) * (h / (maxY - minY));
 		screenSpace.r = p.r;
+		screenSpace.color = p.color;
 
 		return screenSpace;
 	}
@@ -639,6 +633,14 @@ public:
 	}
 
 };
+
+
+
+
+
+
+
+
 
 
 
